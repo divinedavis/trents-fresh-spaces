@@ -11,7 +11,10 @@ interior painting business. *Fresh Spaces. Better Places.*
 ## Structure
 
 ```
-index.html        # single-page marketing site (hero, services, poster, why-us, contact)
+index.html        # single-page marketing site (hero, services, poster, why-us, FAQ, contact)
+                  #   + SEO: canonical, OG/Twitter, geo tags, JSON-LD (HousePainter + FAQPage)
+robots.txt        # allows search + AI crawlers (GPTBot, PerplexityBot, ClaudeBot, …); points to sitemap
+sitemap.xml       # single-URL sitemap
 styles.css        # site styles + design tokens
 script.js         # header scroll state, mobile nav, footer year
 booking.css       # booking widget styles
@@ -71,7 +74,8 @@ nginx site `trents-fresh-spaces`. The booking API runs under **pm2** on
 
 ```bash
 # static
-rsync -avz index.html styles.css script.js booking.css booking.js assets/ \
+rsync -avz index.html styles.css script.js booking.css booking.js \
+  robots.txt sitemap.xml assets/ \
   root@104.236.120.144:/var/www/trents-fresh-spaces/
 # api
 rsync -avz --exclude node_modules --exclude .env --exclude '*.sqlite*' \
