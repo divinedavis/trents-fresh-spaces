@@ -73,8 +73,7 @@
       b.addEventListener('click', function () {
         state.service = b.getAttribute('data-svc');
         state.slot = null;
-        render();
-        loadSlots();
+        render(); // render() re-loads slots at its end; no second call (avoids duplicate fetch)
       });
     });
     var dateInput = root.querySelector('#bk-date');
@@ -104,9 +103,12 @@
     slotsEl.innerHTML = '';
     msgEl.className = 'slots-msg';
     msgEl.textContent = 'Loading open times…';
+    var seq = (state._seq = (state._seq || 0) + 1); // ignore stale/overlapping responses
     fetch(API + '/api/availability?service=' + encodeURIComponent(state.service) + '&date=' + encodeURIComponent(state.date))
       .then(function (r) { return r.json(); })
       .then(function (data) {
+        if (seq !== state._seq) return; // a newer load started; drop this one
+        slotsEl.innerHTML = '';
         if (!data.slots || !data.slots.length) {
           msgEl.textContent = 'No open times that day — try another date, or call (717) 882-1183.';
           return;
