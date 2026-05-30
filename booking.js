@@ -202,6 +202,11 @@
         '</div></div>'
       )
     );
+    // Bring the confirmation into view so the customer always sees it.
+    try {
+      var sec = document.getElementById('book') || root;
+      sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (_) {}
   }
 
   function showUnavailable() {
