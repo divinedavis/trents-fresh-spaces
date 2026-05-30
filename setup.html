@@ -73,7 +73,8 @@
         <!-- 2. Google calendar -->
         <div class="setup-sec">
           <h2><span class="tag">2</span> Your Google Calendar (read-only)</h2>
-          <p class="hint">So events you add to your own Google Calendar block those times on the site. On a computer: Google Calendar → hover your calendar → ⋮ → <strong>Settings and sharing</strong> → scroll to <strong>"Secret address in iCal format"</strong> → copy the link (ends in <code>.ics</code>).</p>
+          <p class="hint">So events you add to your own Google Calendar block those times on the site. On a computer: Google Calendar → hover your calendar → ⋮ → <strong>Settings and sharing</strong> → scroll to <strong>"Secret address in iCal format"</strong> → copy the link (ends in <code>.ics</code>).
+            <br><strong>Tip:</strong> when you add your own appointments on your iPhone, save them to your <em>Gmail</em> calendar (Settings → Apps → Calendar → Default Calendar) so they hide times on the site.</p>
           <div class="field">
             <label for="googleIcsUrl">Google "Secret address in iCal format" URL</label>
             <input id="googleIcsUrl" type="url" autocomplete="off" placeholder="https://calendar.google.com/calendar/ical/.../basic.ics" />
@@ -82,9 +83,9 @@
 
         <!-- 3. Apple / iCloud -->
         <div class="setup-sec">
-          <h2><span class="tag">3</span> Apple / iCloud Calendar</h2>
-          <p class="hint">If you use the Apple Calendar on your iPhone/Mac, add this so bookings appear there too — and your Apple events block site times. Not sure which calendar you use? Fill in both 2 and 3; we'll keep them in sync.
-            <br>You'll need an <strong>app-specific password</strong> (not your normal Apple password, not any API): go to <a href="https://account.apple.com/account/manage" target="_blank" rel="noopener">account.apple.com</a> → Sign-In &amp; Security → <strong>App-Specific Passwords</strong> → create one named "Fresh Spaces", copy it. We auto-detect your calendar — no URL hunting.</p>
+          <h2><span class="tag opt">Optional — skip if you use Google</span> Apple / iCloud Calendar</h2>
+          <p class="hint"><strong>Most people can skip this.</strong> If your Google Calendar (Step 2) is the one you actually use — even if it just shows up in the Apple Calendar app on your iPhone — you're already covered and can leave this blank.
+            <br>Only fill this in if you keep some appointments in a separate <strong>iCloud</strong> calendar. You'll need an <strong>app-specific password</strong> (not your normal Apple password, not any API): <a href="https://account.apple.com/account/manage" target="_blank" rel="noopener">account.apple.com</a> → Sign-In &amp; Security → <strong>App-Specific Passwords</strong> → create one named "Fresh Spaces". We auto-detect your calendar — no URL hunting.</p>
           <div class="row2">
             <div class="field">
               <label for="appleId">Apple ID (email)</label>
