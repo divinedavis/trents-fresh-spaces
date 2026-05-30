@@ -27,6 +27,29 @@ const { runSetup } = require('./setup');
 
 const app = express();
 app.disable('x-powered-by');
+
+// Escape user-controlled values before interpolating them into any HTML output,
+// to prevent stored XSS (booking fields are accepted verbatim and rendered later).
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Baseline security response headers (no helmet dependency present; a small
+// middleware keeps the footprint minimal).
+app.use((_req, res, next) => {
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+  next();
+});
+
 app.use(express.json({ limit: '32kb' }));
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 
@@ -196,7 +219,7 @@ app.post('/api/admin/cancel', (req, res) => {
 
 // --- Trent's booking management (signed, tokenless link from his alert email) ---
 function manageHtml(title, body) {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${title} — Trent's Fresh Spaces</title>
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(title)} — Trent's Fresh Spaces</title>
   <style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f6f8fc;color:#10182a;margin:0;padding:40px 20px}
   .card{max-width:520px;margin:0 auto;background:#fff;border:1px solid #e6ebf3;border-radius:18px;box-shadow:0 18px 50px -20px rgba(10,26,51,.28);padding:32px}
   h1{font-size:1.4rem;margin:0 0 14px;color:#0a1a33}.row{margin:6px 0;color:#5a6678}.row b{color:#10182a}
@@ -214,21 +237,21 @@ app.get('/booking/manage', (req, res) => {
   const svc = config.servicesById[b.service];
   const when = DateTime.fromISO(b.start_utc, { zone: 'utc' }).setZone(config.timezone).toFormat("cccc, LLL d 'at' h:mm a");
   if (b.status !== 'confirmed') {
-    return res.send(manageHtml('Already cancelled', `<h1>This booking is already cancelled.</h1><div class="row"><b>${b.name}</b> — ${svc ? svc.label : ''} on ${when}</div>`));
+    return res.send(manageHtml('Already cancelled', `<h1>This booking is already cancelled.</h1><div class="row"><b>${escapeHtml(b.name)}</b> — ${svc ? escapeHtml(svc.label) : ''} on ${escapeHtml(when)}</div>`));
   }
   res.send(
     manageHtml(
       'Manage booking',
       `<h1>Cancel this appointment?</h1>
-       <div class="row"><b>${svc ? svc.label : 'Appointment'}</b></div>
-       <div class="row">${when} (ET)</div>
-       <div class="row">${b.name} · ${b.phone}${b.email ? ' · ' + b.email : ''}</div>
-       ${b.address ? `<div class="row">${b.address}</div>` : ''}
+       <div class="row"><b>${svc ? escapeHtml(svc.label) : 'Appointment'}</b></div>
+       <div class="row">${escapeHtml(when)} (ET)</div>
+       <div class="row">${escapeHtml(b.name)} · ${escapeHtml(b.phone)}${b.email ? ' · ' + escapeHtml(b.email) : ''}</div>
+       ${b.address ? `<div class="row">${escapeHtml(b.address)}</div>` : ''}
        <form method="POST" action="/booking/cancel">
-         <input type="hidden" name="uid" value="${uid}"><input type="hidden" name="sig" value="${sig}">
+         <input type="hidden" name="uid" value="${escapeHtml(uid)}"><input type="hidden" name="sig" value="${escapeHtml(sig)}">
          <button class="btn danger" type="submit">Cancel &amp; notify the customer</button>
        </form>
-       <p class="muted">The customer${b.email ? ' will be emailed' : ' has no email on file — please call them at ' + b.phone}, and this time will reopen on the site.</p>`
+       <p class="muted">The customer${b.email ? ' will be emailed' : ' has no email on file — please call them at ' + escapeHtml(b.phone)}, and this time will reopen on the site.</p>`
     )
   );
 });
@@ -248,7 +271,7 @@ app.post('/booking/cancel', async (req, res) => {
     manageHtml(
       'Cancelled',
       `<h1>Done — booking cancelled.</h1>
-       <p class="row">${b.email ? 'The customer has been emailed and asked to rebook.' : 'No email was on file — please call ' + b.phone + ' to let them know.'}</p>
+       <p class="row">${b.email ? 'The customer has been emailed and asked to rebook.' : 'No email was on file — please call ' + escapeHtml(b.phone) + ' to let them know.'}</p>
        <p class="muted">That time is now open again on the site.</p>`
     )
   );

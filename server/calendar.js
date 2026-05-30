@@ -8,8 +8,18 @@ const config = require('./config');
 
 // Signed, tokenless management link for Trent's emails (so the link itself is
 // the credential — no admin token exposed, and only a valid signature works).
+// Require the signing secret from the environment and fail closed if it is
+// unset: a hardcoded/guessable fallback would let anyone forge a valid
+// cancellation-link signature on a misconfigured deploy.
+const MANAGE_SIGNING_SECRET = (config.adminToken || process.env.MANAGE_SIGNING_SECRET || '').trim();
+if (!MANAGE_SIGNING_SECRET) {
+  throw new Error(
+    'ADMIN_TOKEN (signing secret) is not set. Set ADMIN_TOKEN in the environment ' +
+      '— management-link signatures cannot be issued or verified securely without it.'
+  );
+}
 function signUid(uid) {
-  return crypto.createHmac('sha256', config.adminToken || 'fresh-spaces').update(uid).digest('hex').slice(0, 32);
+  return crypto.createHmac('sha256', MANAGE_SIGNING_SECRET).update(uid).digest('hex').slice(0, 32);
 }
 function verifyManageSig(uid, sig) {
   const expected = signUid(uid);
