@@ -1,0 +1,20 @@
+{
+  "name": "trents-fresh-spaces-booking",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Booking + two-way calendar sync API for Trent's Fresh Spaces",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.21.2",
+    "ics": "^3.8.1",
+    "luxon": "^3.5.0",
+    "node-ical": "^0.20.1",
+    "nodemailer": "^6.10.0",
+    "tsdav": "^2.1.5"
+  }
+}

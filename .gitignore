@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+server/node_modules/
+
+# secrets / runtime config
+.env
+server/.env
+*.env.local
+
+# sqlite database + WAL files
+*.sqlite
+*.sqlite-*
+server/bookings.sqlite*
+
+# logs
+*.log
+npm-debug.log*
+
+# os
+.DS_Store
+Thumbs.db
