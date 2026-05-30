@@ -37,12 +37,14 @@ const config = {
     leadTimeHours: int('LEAD_TIME_HOURS', 2), // earliest a customer can book from now (allows same-day)
     maxDaysAhead: int('MAX_DAYS_AHEAD', 45),
     slotStepMin: int('SLOT_STEP_MIN', 30), // grid the day is divided into
-    bufferMin: int('BUFFER_MIN', 15), // gap kept around every booking
+    bufferMin: int('BUFFER_MIN', 0), // default gap for external/unknown busy blocks
   },
 
+  // bufferMin is per-service: on-site estimates reserve travel time on each side;
+  // phone consults need none (back-to-back calls are fine).
   services: {
-    estimate: { id: 'estimate', label: 'Free On-Site Estimate', durationMin: int('DUR_ESTIMATE_MIN', 60) },
-    consult: { id: 'consult', label: 'Phone Consultation', durationMin: int('DUR_CONSULT_MIN', 20) },
+    estimate: { id: 'estimate', label: 'Free On-Site Estimate', durationMin: int('DUR_ESTIMATE_MIN', 60), bufferMin: int('BUFFER_ESTIMATE_MIN', 15) },
+    consult: { id: 'consult', label: 'Phone Consultation', durationMin: int('DUR_CONSULT_MIN', 20), bufferMin: int('BUFFER_CONSULT_MIN', 0) },
   },
 
   // Read-only ICS feed URLs for Trent's calendars (Google "secret iCal address",

@@ -13,13 +13,11 @@ function hmToMinutes(hm) {
   return h * 60 + m;
 }
 
-// busyIntervals: array of { start: <ms epoch>, end: <ms epoch> }
-// Returns true if [startMs,endMs) (expanded by buffer) collides with any busy interval.
-function collides(startMs, endMs, busyIntervals, bufferMs) {
-  const s = startMs - bufferMs;
-  const e = endMs + bufferMs;
+// busyIntervals: array of { start, end } in ms epoch, ALREADY padded by each
+// booking's own buffer (see dbBusyInRange). Candidate is checked raw.
+function collides(startMs, endMs, busyIntervals) {
   for (const b of busyIntervals) {
-    if (s < b.end && e > b.start) return true;
+    if (startMs < b.end && endMs > b.start) return true;
   }
   return false;
 }
@@ -46,7 +44,6 @@ function generateSlots(serviceId, dateISO, busyIntervals, nowMs) {
   const svc = serviceOrThrow(serviceId);
   const tz = config.timezone;
   const durMs = svc.durationMin * 60000;
-  const bufferMs = config.business.bufferMin * 60000;
   const stepMs = config.business.slotStepMin * 60000;
   const earliestMs = nowMs + config.business.leadTimeHours * 3600000;
 
@@ -69,7 +66,7 @@ function generateSlots(serviceId, dateISO, busyIntervals, nowMs) {
   while (cursor.plus({ milliseconds: durMs }) <= close) {
     const startMs = cursor.toMillis();
     const endMs = startMs + durMs;
-    if (startMs >= earliestMs && !collides(startMs, endMs, busyIntervals, bufferMs)) {
+    if (startMs >= earliestMs && !collides(startMs, endMs, busyIntervals)) {
       slots.push({
         start: DateTime.fromMillis(startMs, { zone: 'utc' }).toISO(),
         end: DateTime.fromMillis(endMs, { zone: 'utc' }).toISO(),
@@ -88,7 +85,6 @@ function validateBooking(serviceId, startISO, busyIntervals, nowMs) {
   const svc = serviceOrThrow(serviceId);
   const tz = config.timezone;
   const durMs = svc.durationMin * 60000;
-  const bufferMs = config.business.bufferMin * 60000;
 
   const start = DateTime.fromISO(startISO, { zone: 'utc' });
   if (!start.isValid) return { ok: false, reason: 'Invalid start time' };
@@ -101,7 +97,7 @@ function validateBooking(serviceId, startISO, busyIntervals, nowMs) {
   if (!validStarts.has(start.toISO())) {
     return { ok: false, reason: 'That time is no longer available' };
   }
-  if (collides(startMs, endMs, busyIntervals, bufferMs)) {
+  if (collides(startMs, endMs, busyIntervals)) {
     return { ok: false, reason: 'That time was just booked' };
   }
   return { ok: true, end: DateTime.fromMillis(endMs, { zone: 'utc' }).toISO(), durationMin: svc.durationMin };

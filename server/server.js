@@ -48,10 +48,14 @@ function dbBusyInRange(startMs, endMs) {
     start: DateTime.fromMillis(startMs, { zone: 'utc' }).toISO(),
     end: DateTime.fromMillis(endMs, { zone: 'utc' }).toISO(),
   });
-  return rows.map((r) => ({
-    start: DateTime.fromISO(r.start_utc, { zone: 'utc' }).toMillis(),
-    end: DateTime.fromISO(r.end_utc, { zone: 'utc' }).toMillis(),
-  }));
+  return rows.map((r) => {
+    const svc = config.servicesById[r.service];
+    const bufMs = ((svc && svc.bufferMin) || 0) * 60000; // pad by the booked service's buffer
+    return {
+      start: DateTime.fromISO(r.start_utc, { zone: 'utc' }).toMillis() - bufMs,
+      end: DateTime.fromISO(r.end_utc, { zone: 'utc' }).toMillis() + bufMs,
+    };
+  });
 }
 
 async function busyForDay(dateISO) {
