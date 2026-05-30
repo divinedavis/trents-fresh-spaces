@@ -24,9 +24,24 @@ function writeEnv(obj) {
   fs.writeFileSync(ENV_PATH, lines.join('\n') + '\n', { mode: 0o600 });
 }
 
-async function countEvents(url) {
-  const data = await ical.async.fromURL(url);
-  return Object.values(data).filter((e) => e && e.type === 'VEVENT').length;
+// Fetch + validate an ICS feed. Returns event count, or throws a classified error.
+async function countEvents(rawUrl) {
+  let url = (rawUrl || '').trim().replace(/^webcal:\/\//i, 'https://');
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 12000);
+  let res;
+  try {
+    res = await fetch(url, { redirect: 'follow', signal: ctrl.signal, headers: { 'User-Agent': 'TrentsFreshSpaces/1.0 (+https://trentsfreshspaces.com)' } });
+  } catch (e) {
+    clearTimeout(t);
+    throw new Error('fetch-failed:' + (e.message || 'network'));
+  }
+  clearTimeout(t);
+  if (!res.ok) throw new Error('http-' + res.status);
+  const text = await res.text();
+  if (!/BEGIN:VCALENDAR/i.test(text)) throw new Error('not-ics');
+  const parsed = ical.sync.parseICS(text);
+  return Object.values(parsed).filter((e) => e && e.type === 'VEVENT').length;
 }
 
 // payload: { gmailUser, gmailAppPassword, googleIcsUrl, icloudIcsUrl }
@@ -71,7 +86,17 @@ async function runSetup(p) {
       googleOk = true;
       checks.push({ ok: true, label: `Google Calendar connected (${n} events visible)` });
     } catch (e) {
-      checks.push({ ok: false, label: 'Google calendar link could not be read — re-copy the "Secret address in iCal format"' });
+      const code = e.message || '';
+      let host = '?';
+      try { host = new URL(p.googleIcsUrl.trim().replace(/^webcal:\/\//i, 'https://')).host; } catch (_) {}
+      console.error(`[setup] google feed check failed: ${code} | host: ${host}`);
+      let hint;
+      if (/^http-404/.test(code)) hint = 'That calendar link returned "not found" — copy the "Secret address in iCal format" (it ends in /basic.ics); the Public address won\'t work for a private calendar.';
+      else if (/not-ics/.test(code)) hint = 'That link isn\'t an iCal feed — use "Secret address in iCal format" (ends in /basic.ics), not "Public URL to this calendar" (that\'s a web page).';
+      else if (/^http-/.test(code)) hint = `Google returned an error (${code.replace('http-', 'HTTP ')}) for that link — re-copy the "Secret address in iCal format".`;
+      else if (/fetch-failed|abort/.test(code)) hint = 'Couldn\'t reach that calendar link — make sure the full URL was pasted, then try again.';
+      else hint = 'Google calendar link could not be read — re-copy the "Secret address in iCal format".';
+      checks.push({ ok: false, label: hint });
     }
   }
 
