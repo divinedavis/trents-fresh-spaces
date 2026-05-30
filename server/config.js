@@ -34,7 +34,7 @@ const config = {
       5: { open: '09:00', close: '21:00' },
       6: { open: '09:00', close: '21:00' },
     },
-    leadTimeHours: int('LEAD_TIME_HOURS', 12), // earliest a customer can book from now
+    leadTimeHours: int('LEAD_TIME_HOURS', 2), // earliest a customer can book from now (allows same-day)
     maxDaysAhead: int('MAX_DAYS_AHEAD', 45),
     slotStepMin: int('SLOT_STEP_MIN', 30), // grid the day is divided into
     bufferMin: int('BUFFER_MIN', 15), // gap kept around every booking
