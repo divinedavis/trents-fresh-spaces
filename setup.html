@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Connect your calendar — Trent's Fresh Spaces</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="booking.css" />
+  <style>
+    body{background:var(--off)}
+    .setup-wrap{max-width:680px;margin:0 auto;padding:40px 20px 80px}
+    .setup-head{text-align:center;margin-bottom:28px}
+    .setup-head h1{font-family:"Anton",sans-serif;font-weight:400;text-transform:uppercase;color:var(--navy);font-size:2rem;margin:14px 0 8px}
+    .setup-head p{color:var(--muted);margin:0}
+    .setup-card{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:6px 0;margin-bottom:18px}
+    .setup-sec{padding:26px 28px;border-bottom:1px solid var(--line)}
+    .setup-sec:last-child{border-bottom:0}
+    .setup-sec h2{font-family:"Archivo",sans-serif;font-size:1.08rem;color:var(--navy);margin:0 0 4px;display:flex;gap:10px;align-items:center}
+    .setup-sec .tag{font-size:.7rem;background:var(--blue-soft);color:var(--blue);padding:3px 8px;border-radius:99px;font-weight:700;letter-spacing:.04em}
+    .setup-sec .tag.opt{background:#eef0f4;color:var(--muted)}
+    .setup-sec .hint{color:var(--muted);font-size:.9rem;margin:6px 0 16px}
+    .setup-sec .hint a{color:var(--blue);font-weight:600}
+    .field label{display:block;font-family:"Archivo",sans-serif;font-weight:600;font-size:.85rem;color:var(--navy);margin-bottom:6px}
+    .field input,.field select{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:11px;font:inherit;background:var(--off)}
+    .field input:focus,.field select:focus{outline:none;border-color:var(--blue);background:#fff;box-shadow:0 0 0 4px rgba(30,111,224,.12)}
+    .field{margin-bottom:14px}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .setup-foot{padding:24px 28px;text-align:center}
+    .setup-foot .btn{width:100%;max-width:320px}
+    .result{margin:16px 0 0;padding:14px 16px;border-radius:12px;font-size:.95rem;display:none}
+    .result.ok{display:block;background:#e9f8ef;border:1px solid #b7e6c9;color:#1c7a43}
+    .result.err{display:block;background:#fdecec;border:1px solid #f3c2c2;color:#b3261e}
+    .result ul{margin:8px 0 0;padding-left:18px}
+    .lock-note{display:flex;gap:8px;align-items:center;justify-content:center;color:var(--muted);font-size:.82rem;margin-top:14px}
+    .lock-note svg{width:15px;height:15px}
+    @media (max-width:560px){ .row2{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+  <div class="setup-wrap">
+    <div class="setup-head">
+      <p style="font-family:'Archivo';font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--blue);font-size:.78rem">Trent's Fresh Spaces · Setup</p>
+      <h1>Connect your calendar</h1>
+      <p>One-time setup so online bookings appear on your calendar — and your own calendar blocks hide booked times on the site. Takes ~3 minutes.</p>
+    </div>
+
+    <form id="setupForm">
+      <div class="setup-card">
+        <!-- 1. Email -->
+        <div class="setup-sec">
+          <h2><span class="tag">1</span> Email for confirmations &amp; invites</h2>
+          <p class="hint">This lets the site email a calendar invite + confirmation when someone books. It uses a <strong>Gmail App Password</strong> — <em>not</em> your normal password and not any Google API.
+            <br>Get one: <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a> (needs 2-Step Verification on). Create one named "Fresh Spaces", copy the 16 characters.</p>
+          <div class="row2">
+            <div class="field">
+              <label for="gmailUser">Your Gmail address</label>
+              <select id="gmailUser">
+                <option value="trent.freeland@gmail.com">trent.freeland@gmail.com</option>
+                <option value="freelandiam@gmail.com">freelandiam@gmail.com</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="gmailAppPassword">Gmail App Password</label>
+              <input id="gmailAppPassword" type="text" autocomplete="off" placeholder="abcd efgh ijkl mnop" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Google calendar -->
+        <div class="setup-sec">
+          <h2><span class="tag">2</span> Your Google Calendar (read-only)</h2>
+          <p class="hint">So events you add to your own Google Calendar block those times on the site. On a computer: Google Calendar → hover your calendar → ⋮ → <strong>Settings and sharing</strong> → scroll to <strong>"Secret address in iCal format"</strong> → copy the link (ends in <code>.ics</code>).</p>
+          <div class="field">
+            <label for="googleIcsUrl">Google "Secret address in iCal format" URL</label>
+            <input id="googleIcsUrl" type="url" autocomplete="off" placeholder="https://calendar.google.com/calendar/ical/.../basic.ics" />
+          </div>
+        </div>
+
+        <!-- 3. Apple / iCloud -->
+        <div class="setup-sec">
+          <h2><span class="tag">3</span> Apple / iCloud Calendar</h2>
+          <p class="hint">If you use the Apple Calendar on your iPhone/Mac, add this so bookings appear there too — and your Apple events block site times. Not sure which calendar you use? Fill in both 2 and 3; we'll keep them in sync.
+            <br>You'll need an <strong>app-specific password</strong> (not your normal Apple password, not any API): go to <a href="https://account.apple.com/account/manage" target="_blank" rel="noopener">account.apple.com</a> → Sign-In &amp; Security → <strong>App-Specific Passwords</strong> → create one named "Fresh Spaces", copy it. We auto-detect your calendar — no URL hunting.</p>
+          <div class="row2">
+            <div class="field">
+              <label for="appleId">Apple ID (email)</label>
+              <input id="appleId" type="email" autocomplete="off" placeholder="you@icloud.com or your Apple ID" />
+            </div>
+            <div class="field">
+              <label for="appleAppPassword">Apple app-specific password</label>
+              <input id="appleAppPassword" type="text" autocomplete="off" placeholder="xxxx-xxxx-xxxx-xxxx" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="setup-card">
+        <div class="setup-foot">
+          <button type="submit" class="btn btn-primary btn-lg" id="setupSubmit">Connect &amp; Test</button>
+          <div class="result" id="setupResult"></div>
+          <div class="lock-note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Sent securely over HTTPS. This link works once and is stored only on the booking server.
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    (function () {
+      var params = new URLSearchParams(location.search);
+      var token = params.get('t') || '';
+      var form = document.getElementById('setupForm');
+      var btn = document.getElementById('setupSubmit');
+      var res = document.getElementById('setupResult');
+
+      function show(cls, html) { res.className = 'result ' + cls; res.innerHTML = html; }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!token) { show('err', 'This setup link is missing its access code. Ask for a fresh link.'); return; }
+        var payload = {
+          gmailUser: document.getElementById('gmailUser').value,
+          gmailAppPassword: document.getElementById('gmailAppPassword').value.replace(/\s+/g, ''),
+          googleIcsUrl: document.getElementById('googleIcsUrl').value.trim(),
+          appleId: document.getElementById('appleId').value.trim(),
+          appleAppPassword: document.getElementById('appleAppPassword').value.trim(),
+        };
+        btn.disabled = true; btn.textContent = 'Testing…';
+        show('', '');
+        fetch('/api/setup?t=' + encodeURIComponent(token), {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (out) {
+            if (!out.ok) { show('err', out.j.error || 'Something went wrong. Double-check the values and try again.'); btn.disabled = false; btn.textContent = 'Connect & Test'; return; }
+            var lines = (out.j.checks || []).map(function (c) { return '<li>' + (c.ok ? '✓ ' : '⚠️ ') + c.label + '</li>'; }).join('');
+            show('ok', '<strong>You\'re connected!</strong> Bookings will now sync with your calendar.<ul>' + lines + '</ul>');
+            btn.textContent = 'Done';
+          })
+          .catch(function () { show('err', 'Could not reach the server. Please try again in a minute.'); btn.disabled = false; btn.textContent = 'Connect & Test'; });
+      });
+    })();
+  </script>
+</body>
+</html>

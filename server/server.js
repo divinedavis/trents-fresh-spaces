@@ -23,6 +23,7 @@ const config = require('./config');
 const { stmts } = require('./db');
 const { generateSlots, validateBooking, serviceOrThrow } = require('./availability');
 const calendar = require('./calendar');
+const { runSetup } = require('./setup');
 
 const app = express();
 app.disable('x-powered-by');
@@ -58,8 +59,8 @@ async function busyForDay(dateISO) {
   const dayStart = DateTime.fromISO(dateISO, { zone: tz }).startOf('day');
   const startMs = dayStart.minus({ days: 1 }).toMillis();
   const endMs = dayStart.plus({ days: 2 }).toMillis();
-  const [feed] = await Promise.all([calendar.getFeedBusy(startMs, endMs)]);
-  return [...dbBusyInRange(startMs, endMs), ...feed];
+  const external = await calendar.getExternalBusy(startMs, endMs);
+  return [...dbBusyInRange(startMs, endMs), ...external];
 }
 
 // --- routes ---
@@ -186,6 +187,28 @@ app.post('/api/admin/cancel', (req, res) => {
   if (!existing) return res.status(404).json({ error: 'not found' });
   stmts.cancel.run(uid);
   res.json({ ok: true, uid });
+});
+
+// --- one-time setup link (Trent connects his calendars/email) ---
+app.post('/api/setup', async (req, res) => {
+  const t = req.query.t || req.headers['x-setup-token'];
+  if (!process.env.SETUP_TOKEN || t !== process.env.SETUP_TOKEN) {
+    return res.status(401).json({ error: 'This setup link is invalid or has already been used. Ask for a fresh one.' });
+  }
+  const p = req.body || {};
+  if (!p.gmailUser || !p.gmailAppPassword) {
+    return res.status(400).json({ error: 'Please enter your Gmail address and App Password (step 1).' });
+  }
+  try {
+    const result = await runSetup(p);
+    res.json({ ok: true, checks: result.checks });
+    // Restart so the new .env (SMTP + feeds + iCloud) is picked up and the
+    // single-use SETUP_TOKEN is cleared. pm2 autorestart brings it back.
+    calendar.invalidateBusyCache();
+    setTimeout(() => process.exit(0), 800);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Setup failed' });
+  }
 });
 
 app.listen(config.port, '127.0.0.1', () => {

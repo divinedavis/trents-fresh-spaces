@@ -70,11 +70,55 @@ async function fetchFeedBusy(rangeStartMs, rangeEndMs) {
   return out.filter((b) => b.end > rangeStartMs && b.start < rangeEndMs);
 }
 
-async function getFeedBusy(rangeStartMs, rangeEndMs) {
-  if (!config.icsFeeds.length) return [];
+// iCloud busy via CalDAV (app-specific password). Reads every VEVENT calendar
+// so Trent's Apple events block site slots in near real time.
+async function fetchIcloudBusy(rangeStartMs, rangeEndMs) {
+  if (!config.icloud.username || !config.icloud.appPassword) return [];
+  const out = [];
+  try {
+    const { createDAVClient } = require('tsdav');
+    const client = await createDAVClient({
+      serverUrl: 'https://caldav.icloud.com',
+      credentials: { username: config.icloud.username, password: config.icloud.appPassword },
+      authMethod: 'Basic',
+      defaultAccountType: 'caldav',
+    });
+    let cals = await client.fetchCalendars();
+    cals = cals.filter((c) => !c.components || c.components.includes('VEVENT'));
+    const start = new Date(rangeStartMs);
+    const end = new Date(rangeEndMs);
+    const startISO = start.toISOString();
+    const endISO = end.toISOString();
+    for (const cal of cals) {
+      let objs = [];
+      try {
+        objs = await client.fetchCalendarObjects({ calendar: cal, timeRange: { start: startISO, end: endISO } });
+      } catch (_) {
+        objs = [];
+      }
+      for (const o of objs) {
+        if (!o || !o.data) continue;
+        const parsed = ical.sync.parseICS(o.data);
+        for (const ev of Object.values(parsed)) expandEvent(ev, start, end, out);
+      }
+    }
+  } catch (err) {
+    console.error(`[calendar] iCloud busy fetch failed: ${err.message}`);
+  }
+  return out.filter((b) => b.end > rangeStartMs && b.start < rangeEndMs);
+}
+
+// Combined external busy (ICS feeds + iCloud CalDAV), cached together.
+async function getExternalBusy(rangeStartMs, rangeEndMs) {
+  const hasSources = config.icsFeeds.length || (config.icloud.username && config.icloud.appPassword);
+  if (!hasSources) return [];
   const now = Date.now();
   if (now - busyCache.at < config.busyCacheTtlSec * 1000) return busyCache.intervals;
-  const intervals = await fetchFeedBusy(rangeStartMs, rangeEndMs);
+  const [feed, icloud] = await Promise.all([
+    fetchFeedBusy(rangeStartMs, rangeEndMs),
+    fetchIcloudBusy(rangeStartMs, rangeEndMs),
+  ]);
+  const intervals = [...feed, ...icloud];
   busyCache = { at: now, intervals };
   return intervals;
 }
@@ -226,7 +270,7 @@ async function icloudWriteback(booking) {
 }
 
 module.exports = {
-  getFeedBusy,
+  getExternalBusy,
   invalidateBusyCache,
   sendBookingEmails,
   icloudWriteback,
