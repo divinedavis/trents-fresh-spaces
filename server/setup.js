@@ -50,9 +50,11 @@ async function runSetup(p) {
   }
 
   // 2. Google calendar feed.
+  let googleOk = false;
   if (p.googleIcsUrl) {
     try {
       const n = await countEvents(p.googleIcsUrl);
+      googleOk = true;
       checks.push({ ok: true, label: `Google Calendar connected (${n} events visible)` });
     } catch (e) {
       checks.push({ ok: false, label: 'Google calendar link could not be read — re-copy the "Secret address in iCal format"' });
@@ -90,16 +92,23 @@ async function runSetup(p) {
     }
   }
 
-  // Persist whatever was provided (even if a check warned — feeds may simply be empty).
-  env.SMTP_HOST = 'smtp.gmail.com';
-  env.SMTP_PORT = '587';
-  env.SMTP_SECURE = 'false';
-  env.SMTP_USER = p.gmailUser;
-  env.SMTP_PASS = p.gmailAppPassword;
-  env.FROM_EMAIL = p.gmailUser;
-  const feeds = [p.googleIcsUrl].map((s) => (s || '').trim()).filter(Boolean);
-  if (feeds.length) env.ICS_FEEDS = feeds.join(',');
-  delete env.SETUP_TOKEN; // single-use: the link stops working after this
+  // Persist ONLY the parts that verified successfully — never save credentials
+  // Gmail/Apple rejected, and never overwrite a working setting with a broken one.
+  if (smtpOk) {
+    env.SMTP_HOST = 'smtp.gmail.com';
+    env.SMTP_PORT = '587';
+    env.SMTP_SECURE = 'false';
+    env.SMTP_USER = p.gmailUser;
+    env.SMTP_PASS = p.gmailAppPassword;
+    env.FROM_EMAIL = p.gmailUser;
+  }
+  if (googleOk) env.ICS_FEEDS = p.googleIcsUrl.trim();
+  const feeds = (env.ICS_FEEDS || '').split(',').filter(Boolean);
+
+  // Clear the single-use token only if at least one thing connected. A fully
+  // failed attempt leaves the link alive so Trent can retry without a new link.
+  const anySuccess = smtpOk || googleOk || !!appleCalUrl;
+  if (anySuccess) delete env.SETUP_TOKEN;
   writeEnv(env);
 
   // Notify the site owner (no secrets in the body).
@@ -121,7 +130,7 @@ async function runSetup(p) {
     }
   }
 
-  return { checks };
+  return { checks, changed: anySuccess };
 }
 
 module.exports = { runSetup };

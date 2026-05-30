@@ -201,11 +201,14 @@ app.post('/api/setup', async (req, res) => {
   }
   try {
     const result = await runSetup(p);
-    res.json({ ok: true, checks: result.checks });
-    // Restart so the new .env (SMTP + feeds + iCloud) is picked up and the
-    // single-use SETUP_TOKEN is cleared. pm2 autorestart brings it back.
-    calendar.invalidateBusyCache();
-    setTimeout(() => process.exit(0), 800);
+    res.json({ ok: true, checks: result.checks, connected: result.changed });
+    // Only restart if something actually connected — then the new .env (SMTP +
+    // feeds + iCloud) is picked up and the single-use SETUP_TOKEN is cleared.
+    // A fully-failed attempt changes nothing and keeps the link alive for retry.
+    if (result.changed) {
+      calendar.invalidateBusyCache();
+      setTimeout(() => process.exit(0), 800);
+    }
   } catch (err) {
     res.status(500).json({ error: err.message || 'Setup failed' });
   }

@@ -141,8 +141,13 @@
           .then(function (out) {
             if (!out.ok) { show('err', out.j.error || 'Something went wrong. Double-check the values and try again.'); btn.disabled = false; btn.textContent = 'Connect & Test'; return; }
             var lines = (out.j.checks || []).map(function (c) { return '<li>' + (c.ok ? '✓ ' : '⚠️ ') + c.label + '</li>'; }).join('');
-            show('ok', '<strong>You\'re connected!</strong> Bookings will now sync with your calendar.<ul>' + lines + '</ul>');
-            btn.textContent = 'Done';
+            if (out.j.connected) {
+              show('ok', '<strong>You\'re connected!</strong> Bookings will now sync with your calendar.<ul>' + lines + '</ul>');
+              btn.textContent = 'Done';
+            } else {
+              show('err', '<strong>Nothing connected yet.</strong> Please fix the items below and submit again — this link still works.<ul>' + lines + '</ul>');
+              btn.disabled = false; btn.textContent = 'Connect & Test';
+            }
           })
           .catch(function () { show('err', 'Could not reach the server. Please try again in a minute.'); btn.disabled = false; btn.textContent = 'Connect & Test'; });
       });
