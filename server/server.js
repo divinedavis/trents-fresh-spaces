@@ -196,8 +196,11 @@ app.post('/api/setup', async (req, res) => {
     return res.status(401).json({ error: 'This setup link is invalid or has already been used. Ask for a fresh one.' });
   }
   const p = req.body || {};
-  if (!p.gmailUser || !p.gmailAppPassword) {
-    return res.status(400).json({ error: 'Please enter your Gmail address and App Password (step 1).' });
+  const hasEmail = p.gmailUser && p.gmailAppPassword;
+  const hasGoogle = p.googleIcsUrl;
+  const hasApple = p.appleId && p.appleAppPassword;
+  if (!hasEmail && !hasGoogle && !hasApple) {
+    return res.status(400).json({ error: 'Please fill in at least one section before submitting.' });
   }
   try {
     const result = await runSetup(p);

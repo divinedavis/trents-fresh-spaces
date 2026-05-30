@@ -34,13 +34,17 @@ async function runSetup(p) {
   const checks = [];
 
   // 1. Verify Gmail SMTP (App Password) by opening a real connection.
-  const tx = nodemailer.createTransport({
+  //    Skipped entirely if email wasn't provided (e.g. a Step-2-only submit),
+  //    so an already-connected email is left untouched.
+  let tx = null;
+  let smtpOk = false;
+  if (p.gmailUser && p.gmailAppPassword) {
+   tx = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
     secure: false,
     auth: { user: p.gmailUser, pass: p.gmailAppPassword },
   });
-  let smtpOk = false;
   try {
     await tx.verify();
     smtpOk = true;
@@ -56,6 +60,7 @@ async function runSetup(p) {
       hint = 'Email could not connect — check the address and 16-character App Password. (' + msg.slice(0, 80) + ')';
     }
     checks.push({ ok: false, label: hint });
+  }
   }
 
   // 2. Google calendar feed.
