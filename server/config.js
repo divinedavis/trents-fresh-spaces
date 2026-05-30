@@ -20,6 +20,7 @@ const config = {
   port: int('PORT', 3007),
   timezone: str('TZ', 'America/New_York'),
   adminToken: str('ADMIN_TOKEN', ''),
+  siteUrl: str('SITE_URL', 'https://trentsfreshspaces.com'),
 
   business: {
     name: "Trent's Fresh Spaces",

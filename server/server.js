@@ -28,6 +28,7 @@ const { runSetup } = require('./setup');
 const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '32kb' }));
+app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 
 // --- tiny in-memory rate limiter for the booking endpoint ---
 const hits = new Map();
@@ -191,6 +192,66 @@ app.post('/api/admin/cancel', (req, res) => {
   if (!existing) return res.status(404).json({ error: 'not found' });
   stmts.cancel.run(uid);
   res.json({ ok: true, uid });
+});
+
+// --- Trent's booking management (signed, tokenless link from his alert email) ---
+function manageHtml(title, body) {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${title} — Trent's Fresh Spaces</title>
+  <style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f6f8fc;color:#10182a;margin:0;padding:40px 20px}
+  .card{max-width:520px;margin:0 auto;background:#fff;border:1px solid #e6ebf3;border-radius:18px;box-shadow:0 18px 50px -20px rgba(10,26,51,.28);padding:32px}
+  h1{font-size:1.4rem;margin:0 0 14px;color:#0a1a33}.row{margin:6px 0;color:#5a6678}.row b{color:#10182a}
+  .btn{display:inline-block;margin-top:18px;padding:13px 24px;border-radius:999px;border:0;font-weight:700;font-size:1rem;cursor:pointer}
+  .danger{background:#e0463a;color:#fff}.muted{color:#5a6678;font-size:.9rem;margin-top:16px}a{color:#1e6fe0}</style></head>
+  <body><div class="card">${body}</div></body></html>`;
+}
+
+app.get('/booking/manage', (req, res) => {
+  const uid = String(req.query.uid || '');
+  const sig = String(req.query.sig || '');
+  if (!calendar.verifyManageSig(uid, sig)) return res.status(403).send(manageHtml('Invalid link', '<h1>This link is invalid.</h1><p class="muted">Please use the link from your booking email.</p>'));
+  const b = stmts.byUid.get(uid);
+  if (!b) return res.status(404).send(manageHtml('Not found', '<h1>Booking not found.</h1>'));
+  const svc = config.servicesById[b.service];
+  const when = DateTime.fromISO(b.start_utc, { zone: 'utc' }).setZone(config.timezone).toFormat("cccc, LLL d 'at' h:mm a");
+  if (b.status !== 'confirmed') {
+    return res.send(manageHtml('Already cancelled', `<h1>This booking is already cancelled.</h1><div class="row"><b>${b.name}</b> — ${svc ? svc.label : ''} on ${when}</div>`));
+  }
+  res.send(
+    manageHtml(
+      'Manage booking',
+      `<h1>Cancel this appointment?</h1>
+       <div class="row"><b>${svc ? svc.label : 'Appointment'}</b></div>
+       <div class="row">${when} (ET)</div>
+       <div class="row">${b.name} · ${b.phone}${b.email ? ' · ' + b.email : ''}</div>
+       ${b.address ? `<div class="row">${b.address}</div>` : ''}
+       <form method="POST" action="/booking/cancel">
+         <input type="hidden" name="uid" value="${uid}"><input type="hidden" name="sig" value="${sig}">
+         <button class="btn danger" type="submit">Cancel &amp; notify the customer</button>
+       </form>
+       <p class="muted">The customer${b.email ? ' will be emailed' : ' has no email on file — please call them at ' + b.phone}, and this time will reopen on the site.</p>`
+    )
+  );
+});
+
+app.post('/booking/cancel', async (req, res) => {
+  const uid = String((req.body && req.body.uid) || '');
+  const sig = String((req.body && req.body.sig) || '');
+  if (!calendar.verifyManageSig(uid, sig)) return res.status(403).send(manageHtml('Invalid link', '<h1>This link is invalid.</h1>'));
+  const b = stmts.byUid.get(uid);
+  if (!b) return res.status(404).send(manageHtml('Not found', '<h1>Booking not found.</h1>'));
+  if (b.status === 'confirmed') {
+    stmts.cancel.run(uid);
+    calendar.invalidateBusyCache();
+    calendar.sendCancellationEmail(b).catch((e) => console.error('[cancel] customer email failed:', e.message));
+  }
+  res.send(
+    manageHtml(
+      'Cancelled',
+      `<h1>Done — booking cancelled.</h1>
+       <p class="row">${b.email ? 'The customer has been emailed and asked to rebook.' : 'No email was on file — please call ' + b.phone + ' to let them know.'}</p>
+       <p class="muted">That time is now open again on the site.</p>`
+    )
+  );
 });
 
 // --- one-time setup link (Trent connects his calendars/email) ---

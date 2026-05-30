@@ -1,9 +1,27 @@
 'use strict';
+const crypto = require('crypto');
 const ical = require('node-ical');
 const { createEvent } = require('ics');
 const nodemailer = require('nodemailer');
 const { DateTime } = require('luxon');
 const config = require('./config');
+
+// Signed, tokenless management link for Trent's emails (so the link itself is
+// the credential — no admin token exposed, and only a valid signature works).
+function signUid(uid) {
+  return crypto.createHmac('sha256', config.adminToken || 'fresh-spaces').update(uid).digest('hex').slice(0, 32);
+}
+function verifyManageSig(uid, sig) {
+  const expected = signUid(uid);
+  try {
+    return !!sig && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+  } catch (_) {
+    return false;
+  }
+}
+function manageLink(uid) {
+  return `${config.siteUrl}/booking/manage?uid=${encodeURIComponent(uid)}&sig=${signUid(uid)}`;
+}
 
 /* ---------------------------------------------------------------------------
  * 1. BUSY READING — pull Trent's calendar feeds (Google secret iCal / iCloud
@@ -217,7 +235,8 @@ async function sendBookingEmails(booking) {
       (booking.email ? `Email:   ${booking.email}\n` : '') +
       (booking.address ? `Address: ${booking.address}\n` : '') +
       (booking.notes ? `Notes:   ${booking.notes}\n` : '') +
-      `\nThis event is attached — accept it to add it to your calendar.`,
+      `\nThis event is attached — accept it to add it to your calendar.\n` +
+      `\nCan't make it? Cancel and we'll email the customer automatically:\n${manageLink(booking.uid)}`,
     icalEvent,
   });
 
@@ -238,6 +257,37 @@ async function sendBookingEmails(booking) {
       icalEvent,
     });
   }
+  return { sent: true };
+}
+
+// Tell the customer Trent had to cancel, and point them back to rebooking.
+async function sendCancellationEmail(booking) {
+  if (!booking.email) return { sent: false, reason: 'no-customer-email' };
+  const tx = transport();
+  if (!tx) return { sent: false, reason: 'smtp-not-configured' };
+  const svc = config.servicesById[booking.service];
+  const when = fmtWhen(booking);
+  const from = config.fromEmail || config.smtp.user;
+  // Build a CANCEL ICS so the event is also removed from the customer's calendar.
+  let icalEvent;
+  try {
+    const ics = (await buildICS(booking)).replace('METHOD:REQUEST', 'METHOD:CANCEL').replace('STATUS:CONFIRMED', 'STATUS:CANCELLED');
+    icalEvent = { method: 'CANCEL', content: ics, filename: 'cancel.ics' };
+  } catch (_) {}
+  const svcLabel = svc ? svc.label.toLowerCase() : 'appointment';
+  await tx.sendMail({
+    from: `${config.business.name} <${from}>`,
+    to: booking.email,
+    subject: `Your ${svc ? svc.label : 'appointment'} with ${config.business.name} has been cancelled`,
+    text:
+      `Hi ${booking.name},\n\n` +
+      `Your ${svcLabel} with ${config.business.name}, scheduled for ${when} (ET), has been cancelled.\n\n` +
+      `We're sorry for any inconvenience. You can easily reschedule:\n\n` +
+      `  • Book a new time online: ${config.siteUrl}/#book\n` +
+      `  • Or contact Trent directly — call or text (717) 882-1183\n\n` +
+      `We'd still love to help with your project.\n\n— ${config.business.name}`,
+    icalEvent,
+  });
   return { sent: true };
 }
 
@@ -273,6 +323,10 @@ module.exports = {
   getExternalBusy,
   invalidateBusyCache,
   sendBookingEmails,
+  sendCancellationEmail,
   icloudWriteback,
   buildICS,
+  signUid,
+  verifyManageSig,
+  manageLink,
 };
