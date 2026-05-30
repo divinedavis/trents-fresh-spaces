@@ -144,10 +144,10 @@ async function runSetup(p) {
   if (googleOk) env.ICS_FEEDS = p.googleIcsUrl.trim();
   const feeds = (env.ICS_FEEDS || '').split(',').filter(Boolean);
 
-  // Clear the single-use token only if at least one thing connected. A fully
-  // failed attempt leaves the link alive so Trent can retry without a new link.
+  // Reusable link: the SETUP_TOKEN persists so Trent can return to the same
+  // link anytime to update his email or calendar. (Rotate it manually in .env
+  // if it ever needs revoking.)
   const anySuccess = smtpOk || googleOk || !!appleCalUrl;
-  if (anySuccess) delete env.SETUP_TOKEN;
   writeEnv(env);
 
   // Notify the site owner (no secrets in the body).
