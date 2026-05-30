@@ -67,7 +67,7 @@ const config = {
   // Comma-separated; first is the primary (calendar organizer/attendee).
   ownerEmails: list('OWNER_EMAIL').length
     ? list('OWNER_EMAIL')
-    : ['trent.freeland@gmail.com', 'freelandiam@gmail.com'],
+    : ['trent.freeland@gmail.com'],
   ownerName: str('OWNER_NAME', 'Trent Freeland'),
 
   // Optional iCloud CalDAV write-back (app-specific password) for instant insertion
