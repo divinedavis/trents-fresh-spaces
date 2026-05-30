@@ -46,7 +46,16 @@ async function runSetup(p) {
     smtpOk = true;
     checks.push({ ok: true, label: `Email connected (${p.gmailUser})` });
   } catch (e) {
-    checks.push({ ok: false, label: 'Email could not connect — check the 16-character App Password' });
+    const msg = (e && e.message) || '';
+    let hint;
+    if (/badcredentials|username and password not accepted|535/i.test(msg)) {
+      hint = 'Gmail rejected the login. Turn ON 2-Step Verification first, then paste a 16-character App Password (myaccount.google.com/apppasswords) — not your normal Gmail password.';
+    } else if (/getaddrinfo|enotfound|etimedout|econn/i.test(msg)) {
+      hint = 'Could not reach Gmail’s mail server — please try again in a minute.';
+    } else {
+      hint = 'Email could not connect — check the address and 16-character App Password. (' + msg.slice(0, 80) + ')';
+    }
+    checks.push({ ok: false, label: hint });
   }
 
   // 2. Google calendar feed.

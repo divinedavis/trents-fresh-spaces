@@ -58,10 +58,11 @@
           <div class="row2">
             <div class="field">
               <label for="gmailUser">Your Gmail address</label>
-              <select id="gmailUser">
-                <option value="trent.freeland@gmail.com">trent.freeland@gmail.com</option>
-                <option value="freelandiam@gmail.com">freelandiam@gmail.com</option>
-              </select>
+              <input id="gmailUser" type="email" list="gmailOptions" autocomplete="off" value="trent.freeland@gmail.com" placeholder="you@gmail.com" />
+              <datalist id="gmailOptions">
+                <option value="trent.freeland@gmail.com"></option>
+                <option value="freelandiam@gmail.com"></option>
+              </datalist>
             </div>
             <div class="field">
               <label for="gmailAppPassword">Gmail App Password</label>
