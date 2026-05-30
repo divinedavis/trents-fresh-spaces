@@ -25,15 +25,15 @@ const config = {
   business: {
     name: "Trent's Fresh Spaces",
     // 0 = Sunday ... 6 = Saturday. Each day: open/close in 24h local time, or null = closed.
-    // Trent's hours: 9 AM – 9 PM ET, 7 days. Set a day to null to close it.
+    // Trent's hours: Mon–Fri 6–9 PM, Sat–Sun 9 AM–5 PM ET. Set a day to null to close it.
     hours: {
-      0: { open: '09:00', close: '21:00' },
-      1: { open: '09:00', close: '21:00' },
-      2: { open: '09:00', close: '21:00' },
-      3: { open: '09:00', close: '21:00' },
-      4: { open: '09:00', close: '21:00' },
-      5: { open: '09:00', close: '21:00' },
-      6: { open: '09:00', close: '21:00' },
+      0: { open: '09:00', close: '17:00' }, // Sun
+      1: { open: '18:00', close: '21:00' }, // Mon
+      2: { open: '18:00', close: '21:00' }, // Tue
+      3: { open: '18:00', close: '21:00' }, // Wed
+      4: { open: '18:00', close: '21:00' }, // Thu
+      5: { open: '18:00', close: '21:00' }, // Fri
+      6: { open: '09:00', close: '17:00' }, // Sat
     },
     leadTimeHours: int('LEAD_TIME_HOURS', 2), // earliest a customer can book from now (allows same-day)
     maxDaysAhead: int('MAX_DAYS_AHEAD', 45),

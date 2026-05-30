@@ -236,7 +236,9 @@ async function sendBookingEmails(booking) {
       (booking.address ? `Address: ${booking.address}\n` : '') +
       (booking.notes ? `Notes:   ${booking.notes}\n` : '') +
       `\nThis event is attached — accept it to add it to your calendar.\n` +
-      `\nCan't make it? Cancel and we'll email the customer automatically:\n${manageLink(booking.uid)}`,
+      `\n———  NEED TO CANCEL / DECLINE?  ———\n` +
+      `Tap this link and confirm — the customer is automatically emailed to reschedule and the time reopens on the site:\n\n${manageLink(booking.uid)}\n\n` +
+      `(Heads up: just hitting "Decline" on the calendar invite does NOT notify the customer — please use the link above to cancel.)`,
     icalEvent,
   });
 
