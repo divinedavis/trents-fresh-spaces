@@ -1,6 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const ical = require('node-ical');
 const { DateTime } = require('luxon');
@@ -23,6 +24,35 @@ function readEnv() {
 function writeEnv(obj) {
   const lines = Object.keys(obj).map((k) => `${k}=${obj[k]}`);
   fs.writeFileSync(ENV_PATH, lines.join('\n') + '\n', { mode: 0o600 });
+}
+
+// --- setup-token gate -------------------------------------------------------
+// The setup link gates credential overwrite, so the token must NOT be a static,
+// reusable, URL-borne secret. We require it on the credential-write action
+// itself (never as a query param — see server.js), enforce a short TTL, and
+// burn it after the first successful connect so the link can't be replayed.
+const SETUP_TOKEN_TTL_MS = (parseInt(process.env.SETUP_TOKEN_TTL_MIN, 10) || 60) * 60000;
+
+// Constant-time comparison so the gate can't be brute-forced by timing.
+function tokenMatches(provided) {
+  const expected = process.env.SETUP_TOKEN || '';
+  if (!expected || !provided) return false;
+  const a = Buffer.from(String(provided));
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+// Returns { ok } or { ok:false, reason }. Validates the token AND that the
+// short-lived window since it was issued hasn't elapsed.
+function validateSetupToken(provided) {
+  if (!process.env.SETUP_TOKEN) return { ok: false, reason: 'no-token-configured' };
+  if (!tokenMatches(provided)) return { ok: false, reason: 'bad-token' };
+  const issued = parseInt(process.env.SETUP_TOKEN_ISSUED_AT, 10);
+  if (Number.isFinite(issued) && Date.now() - issued > SETUP_TOKEN_TTL_MS) {
+    return { ok: false, reason: 'expired' };
+  }
+  return { ok: true };
 }
 
 // Fetch + validate an ICS feed. Returns event count, or throws a classified error.
@@ -149,11 +179,20 @@ async function runSetup(p) {
   if (googleOk) env.ICS_FEEDS = p.googleIcsUrl.trim();
   const feeds = (env.ICS_FEEDS || '').split(',').filter(Boolean);
 
-  // Reusable link: the SETUP_TOKEN persists so Trent can return to the same
-  // link anytime to update his email or calendar. (Rotate it manually in .env
-  // if it ever needs revoking.)
+  // Single-use link: once anything actually connects, burn the SETUP_TOKEN in
+  // the SAME .env write (no separate write that could race the credential save)
+  // so the link can never overwrite credentials again. A fresh token must be
+  // issued in .env (with a new SETUP_TOKEN_ISSUED_AT) to run setup again.
   const anySuccess = smtpOk || googleOk || !!appleCalUrl;
+  if (anySuccess) {
+    delete env.SETUP_TOKEN;
+    delete env.SETUP_TOKEN_ISSUED_AT;
+  }
   writeEnv(env);
+  if (anySuccess) {
+    delete process.env.SETUP_TOKEN;
+    delete process.env.SETUP_TOKEN_ISSUED_AT;
+  }
 
   // Notify the site owner (no secrets in the body).
   if (smtpOk) {
@@ -177,4 +216,4 @@ async function runSetup(p) {
   return { checks, changed: anySuccess };
 }
 
-module.exports = { runSetup };
+module.exports = { runSetup, validateSetupToken };

@@ -23,7 +23,7 @@ const config = require('./config');
 const { stmts } = require('./db');
 const { generateSlots, validateBooking, serviceOrThrow } = require('./availability');
 const calendar = require('./calendar');
-const { runSetup } = require('./setup');
+const { runSetup, validateSetupToken } = require('./setup');
 
 const app = express();
 app.disable('x-powered-by');
@@ -279,16 +279,28 @@ app.post('/booking/cancel', async (req, res) => {
 
 // --- one-time setup link (Trent connects his calendars/email) ---
 app.post('/api/setup', async (req, res) => {
-  const t = req.query.t || req.headers['x-setup-token'];
-  if (!process.env.SETUP_TOKEN || t !== process.env.SETUP_TOKEN) {
-    return res.status(401).json({ error: 'This setup link is invalid or has already been used. Ask for a fresh one.' });
-  }
+  // The setup token gates credential overwrite, so it is required ON the
+  // credential-write request itself and is accepted ONLY from a header or the
+  // POST body — never from req.query, so it can't leak via access logs, the
+  // Referer header, or browser history. It is short-TTL + single-use (see
+  // setup.js): it expires and is burned from .env after the first successful
+  // connect, so the link can't be replayed.
   const p = req.body || {};
+  const t = req.headers['x-setup-token'] || p.setupToken || p.t;
+  const gate = validateSetupToken(t);
+  if (!gate.ok) {
+    return res.status(401).json({ error: 'This setup link is invalid, expired, or has already been used. Ask for a fresh one.' });
+  }
   const hasEmail = p.gmailUser && p.gmailAppPassword;
   const hasGoogle = p.googleIcsUrl;
   const hasApple = p.appleId && p.appleAppPassword;
   if (!hasEmail && !hasGoogle && !hasApple) {
     return res.status(400).json({ error: 'Please fill in at least one section before submitting.' });
+  }
+  // Re-validate immediately before the credential-changing action so a token
+  // that expired between the gate check and the write can't slip through.
+  if (!validateSetupToken(t).ok) {
+    return res.status(401).json({ error: 'This setup link is invalid, expired, or has already been used. Ask for a fresh one.' });
   }
   try {
     const result = await runSetup(p);

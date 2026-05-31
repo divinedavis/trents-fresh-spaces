@@ -105,7 +105,7 @@
           <div class="result" id="setupResult"></div>
           <div class="lock-note">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            Sent securely over HTTPS. Keep this link — you can reuse it anytime to update your email or calendar.
+            Sent securely over HTTPS. This is a one-time setup link — it expires after you connect. Need to change something later? Ask for a fresh link.
           </div>
         </div>
       </div>
@@ -114,8 +114,20 @@
 
   <script>
     (function () {
-      var params = new URLSearchParams(location.search);
-      var token = params.get('t') || '';
+      // The setup token must not travel in the request URL (it would leak into
+      // server access logs, the Referer header, and browser history). Read it
+      // from the URL fragment (#t=...), which the browser never sends to the
+      // server. For backward compatibility we still accept a legacy ?t= query
+      // param — but if found, we immediately move it into the fragment and
+      // scrub it from the address bar so it stops leaking on reload/share.
+      var hashParams = new URLSearchParams((location.hash || '').replace(/^#/, ''));
+      var queryParams = new URLSearchParams(location.search);
+      var token = hashParams.get('t') || queryParams.get('t') || '';
+      if (token && queryParams.get('t')) {
+        try {
+          history.replaceState(null, '', location.pathname + '#t=' + encodeURIComponent(token));
+        } catch (_) {}
+      }
       var form = document.getElementById('setupForm');
       var btn = document.getElementById('setupSubmit');
       var res = document.getElementById('setupResult');
@@ -134,8 +146,12 @@
         };
         btn.disabled = true; btn.textContent = 'Testing…';
         show('', '');
-        fetch('/api/setup?t=' + encodeURIComponent(token), {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+        // Token rides in a request header, not the URL, so it never lands in
+        // access logs / history / Referer.
+        fetch('/api/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Setup-Token': token },
+          body: JSON.stringify(payload),
         })
           .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
           .then(function (out) {
