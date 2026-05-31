@@ -122,10 +122,23 @@
   }
   </script>
 
+  <!-- Structured data: website -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Trent's Fresh Spaces",
+    "url": "https://trentsfreshspaces.com/"
+  }
+  </script>
+
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+  <link rel="manifest" href="/site.webmanifest" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@500;600;700;800&family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=5" />
   <link rel="stylesheet" href="booking.css?v=3" />
 </head>
 <body>
@@ -253,30 +266,36 @@
         <h2>Interior painting services</h2>
       </div>
       <div class="services-grid">
-        <article class="service-card">
+        <a class="service-card" href="/services/interior-painting.html">
           <h3>Interior Walls</h3>
           <p>Bedrooms, living rooms, hallways and more — smooth, even coverage in the color you love.</p>
-        </article>
-        <article class="service-card">
+          <span class="more">Learn more →</span>
+        </a>
+        <a class="service-card" href="/services/interior-painting.html">
           <h3>Ceilings</h3>
           <p>Bright, clean ceilings that make the whole room feel taller and fresher.</p>
-        </article>
-        <article class="service-card">
+          <span class="more">Learn more →</span>
+        </a>
+        <a class="service-card" href="/services/interior-painting.html">
           <h3>Trim &amp; Doors</h3>
           <p>Crisp baseboards, casings, and doors with sharp, professional lines.</p>
-        </article>
-        <article class="service-card">
+          <span class="more">Learn more →</span>
+        </a>
+        <a class="service-card" href="/services/accent-walls.html">
           <h3>Accent Walls</h3>
           <p>A bold feature wall to give any room personality and depth.</p>
-        </article>
-        <article class="service-card">
+          <span class="more">Learn more →</span>
+        </a>
+        <a class="service-card" href="/services/interior-painting.html">
           <h3>Prep &amp; Repair</h3>
           <p>Patching, sanding, and priming so your finish lasts and looks flawless.</p>
-        </article>
-        <article class="service-card">
+          <span class="more">Learn more →</span>
+        </a>
+        <a class="service-card" href="/services/whole-home-interior-painting.html">
           <h3>Whole-Home Refresh</h3>
           <p>Top-to-bottom interior makeovers, handled cleanly and on schedule.</p>
-        </article>
+          <span class="more">Learn more →</span>
+        </a>
       </div>
     </div>
   </section>
@@ -296,7 +315,7 @@
         <a href="#book" class="btn btn-primary">Request Your Free Estimate</a>
       </div>
       <figure class="poster-figure">
-        <img src="assets/poster.jpg" alt="Trent's Fresh Spaces — professional interior painting poster" loading="lazy" />
+        <img src="assets/poster.jpg" alt="Trent's Fresh Spaces — professional interior painting in York, PA" width="1206" height="1500" loading="lazy" />
       </figure>
     </div>
   </section>
@@ -361,6 +380,33 @@
           <p>Book online below in about 30 seconds — pick a time and we'll confirm instantly — or simply call or text <a href="tel:+17178821183">(717) 882-1183</a>.</p>
         </details>
       </div>
+    </div>
+  </section>
+
+  <!-- ===== Areas we serve ===== -->
+  <section class="areas" id="areas">
+    <div class="container">
+      <div class="section-head">
+        <p class="eyebrow">Proudly local</p>
+        <h2>Areas we serve</h2>
+        <p>Professional interior painting across York County, Pennsylvania — including these communities and the surrounding areas.</p>
+      </div>
+      <ul class="area-tags">
+        <li>York</li>
+        <li>Spring Garden</li>
+        <li>West York</li>
+        <li>Dover</li>
+        <li>Red Lion</li>
+        <li>Dallastown</li>
+        <li>Hanover</li>
+        <li>Spring Grove</li>
+        <li>Manchester</li>
+        <li>Jacobus</li>
+        <li>Shrewsbury</li>
+        <li>Stewartstown</li>
+        <li>Windsor</li>
+        <li>Emigsville</li>
+      </ul>
     </div>
   </section>
 
@@ -434,15 +480,17 @@
       </div>
       <div class="footer-col">
         <h4>Services</h4>
-        <a href="#services">Interior Walls</a>
-        <a href="#services">Ceilings &amp; Trim</a>
-        <a href="#services">Accent Walls</a>
-        <a href="#services">Whole-Home Refresh</a>
+        <a href="/services/interior-painting.html">Interior Painting</a>
+        <a href="/services/accent-walls.html">Accent Walls</a>
+        <a href="/services/whole-home-interior-painting.html">Whole-Home Refresh</a>
+        <a href="/guides/interior-painting-cost-york-pa.html">Painting Cost Guide</a>
+        <a href="/guides/how-to-prepare-for-interior-painting.html">How to Prep for Painting</a>
       </div>
       <div class="footer-col">
         <h4>Get in touch</h4>
         <a href="tel:+17178821183">Call (717) 882-1183</a>
         <a href="sms:+17178821183">Text (717) 882-1183</a>
+        <a href="#areas">Areas We Serve</a>
         <a href="#contact">Free Estimate</a>
       </div>
     </div>

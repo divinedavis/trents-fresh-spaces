@@ -145,7 +145,8 @@ h3{font-family:"Archivo",sans-serif;font-weight:700}
 /* ===== Services ===== */
 .services{padding:90px 0;background:var(--off)}
 .services-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
-.service-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:32px 28px;transition:.25s ease}
+.service-card{display:block;color:inherit;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:32px 28px;transition:.25s ease}
+.service-card .more{display:inline-block;margin-top:14px;font-family:"Archivo",sans-serif;font-weight:700;font-size:.9rem;color:var(--blue)}
 .service-card:hover{transform:translateY(-4px);box-shadow:var(--shadow);border-color:var(--blue-light)}
 .service-card h3{font-size:1.22rem;margin-bottom:10px;color:var(--navy)}
 .service-card h3::before{content:"";display:block;width:34px;height:4px;border-radius:4px;background:var(--blue);margin-bottom:14px}
@@ -237,6 +238,51 @@ h3{font-family:"Archivo",sans-serif;font-weight:700}
   .float-call{display:grid}
   .hero-inner{padding-top:110px}
 }
+
+/* ===== Subpage hero + content (service & guide pages) ===== */
+.subhero{position:relative;overflow:hidden;color:#fff;padding:140px 0 64px;background:linear-gradient(155deg,var(--navy) 0%, var(--navy-2) 50%, #133a72 100%)}
+.subhero::after{content:"";position:absolute;inset:0;background:radial-gradient(900px 520px at 82% -10%,rgba(43,127,228,.45),transparent 60%);pointer-events:none}
+.subhero .container{position:relative;z-index:1;max-width:860px}
+.subhero h1{font-family:"Anton",sans-serif;font-weight:400;text-transform:uppercase;letter-spacing:.5px;color:#fff;font-size:clamp(2.2rem,5.4vw,3.6rem);margin:0 0 16px;line-height:1}
+.subhero p{font-size:clamp(1.02rem,2vw,1.2rem);color:rgba(255,255,255,.86);max-width:620px;margin:0 0 26px}
+.subhero .eyebrow{color:var(--blue-light)}
+.subhero .hero-actions{margin:0}
+
+.crumbs{font-family:"Archivo",sans-serif;font-weight:600;font-size:.82rem;letter-spacing:.04em;margin:0 0 18px}
+.crumbs a{color:rgba(255,255,255,.72)}
+.crumbs a:hover{color:#fff}
+.crumbs span{color:rgba(255,255,255,.5);margin:0 8px}
+.crumbs .here{color:#fff}
+
+.article{padding:72px 0}
+.article .container{max-width:780px}
+.prose h2{font-size:clamp(1.7rem,3.6vw,2.5rem);margin:44px 0 16px}
+.prose h2:first-child{margin-top:0}
+.prose h3{font-family:"Archivo",sans-serif;font-size:1.25rem;color:var(--navy);margin:28px 0 10px}
+.prose p{color:var(--ink);font-size:1.06rem;margin:0 0 18px;line-height:1.7}
+.prose ul{margin:0 0 20px;padding-left:0;list-style:none;display:grid;gap:11px}
+.prose ul li{position:relative;padding-left:30px;color:var(--ink);font-size:1.04rem}
+.prose ul li::before{content:"✓";position:absolute;left:0;top:2px;width:20px;height:20px;display:grid;place-items:center;background:var(--blue);color:#fff;border-radius:50%;font-size:.7rem;font-weight:700}
+.prose a{color:var(--blue);font-weight:600}
+.prose strong{color:var(--navy)}
+.prose .lead{font-size:1.16rem;color:var(--muted)}
+.callout{background:var(--blue-soft);border:1px solid #cfe2fb;border-left:4px solid var(--blue);border-radius:12px;padding:22px 24px;margin:28px 0}
+.callout p{margin:0;font-size:1.04rem}
+.cta-band{background:var(--navy);color:#fff;border-radius:var(--radius);padding:38px 34px;margin:40px 0 0;text-align:center}
+.cta-band h2{color:#fff;margin:0 0 10px;font-size:clamp(1.6rem,3.4vw,2.2rem)}
+.cta-band p{color:rgba(255,255,255,.8);margin:0 0 22px}
+.cta-band .hero-actions{justify-content:center}
+.related{border-top:1px solid var(--line);margin-top:48px;padding-top:30px}
+.related h3{font-family:"Archivo",sans-serif;font-size:1.05rem;color:var(--navy);margin:0 0 14px}
+.related-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.related-grid a{display:block;background:var(--off);border:1px solid var(--line);border-radius:12px;padding:16px 18px;font-family:"Archivo",sans-serif;font-weight:600;color:var(--navy);transition:.2s}
+.related-grid a:hover{border-color:var(--blue);transform:translateY(-2px);color:var(--blue)}
+
+/* ===== Areas We Serve ===== */
+.areas{padding:90px 0;background:#fff}
+.area-tags{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:840px;margin:0 auto}
+.area-tags li{list-style:none;background:var(--off);border:1px solid var(--line);border-radius:999px;padding:10px 20px;font-family:"Archivo",sans-serif;font-weight:600;color:var(--navy);font-size:.95rem}
+.areas .section-head p{color:var(--muted);margin-top:10px}
 
 /* ===== FAQ ===== */
 .faq{padding:90px 0;background:var(--off)}
