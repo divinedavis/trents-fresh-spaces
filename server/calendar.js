@@ -5,6 +5,7 @@ const { createEvent } = require('ics');
 const nodemailer = require('nodemailer');
 const { DateTime } = require('luxon');
 const config = require('./config');
+const { safeFetchText } = require('./safeFetch');
 
 // Signed, tokenless management link for Trent's emails (so the link itself is
 // the credential — no admin token exposed, and only a valid signature works).
@@ -86,12 +87,20 @@ async function fetchFeedBusy(rangeStartMs, rangeEndMs) {
   const rangeStart = new Date(rangeStartMs);
   const rangeEnd = new Date(rangeEndMs);
   const out = [];
-  for (const url of config.icsFeeds) {
+  for (const rawUrl of config.icsFeeds) {
     try {
-      const data = await ical.async.fromURL(url);
+      // Fetch through the SSRF egress guard rather than ical.async.fromURL(),
+      // which does its own unguarded HTTP request. These feed URLs are
+      // user-supplied (added during setup), so a poisoned/redirecting feed
+      // must not be able to reach loopback/private/link-local/metadata hosts.
+      const url = String(rawUrl || '').trim().replace(/^webcal:\/\//i, 'https://');
+      const text = await safeFetchText(url, {
+        headers: { 'User-Agent': 'TrentsFreshSpaces/1.0 (+https://trentsfreshspaces.com)' },
+      });
+      const data = ical.sync.parseICS(text);
       for (const ev of Object.values(data)) expandEvent(ev, rangeStart, rangeEnd, out);
     } catch (err) {
-      console.error(`[calendar] feed fetch failed: ${url} — ${err.message}`);
+      console.error(`[calendar] feed fetch failed: ${rawUrl} — ${err.message}`);
     }
   }
   // Keep only intervals intersecting the window.

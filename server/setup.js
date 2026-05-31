@@ -5,6 +5,7 @@ const nodemailer = require('nodemailer');
 const ical = require('node-ical');
 const { DateTime } = require('luxon');
 const config = require('./config');
+const { safeFetchText } = require('./safeFetch');
 
 const ENV_PATH = path.join(__dirname, '.env');
 
@@ -25,20 +26,23 @@ function writeEnv(obj) {
 }
 
 // Fetch + validate an ICS feed. Returns event count, or throws a classified error.
+// The fetch goes through safeFetchText(), which blocks SSRF: it rejects
+// non-http(s) schemes and any URL whose host resolves to a private/loopback/
+// link-local/reserved range (incl. the cloud metadata IP 169.254.169.254),
+// re-validates every redirect hop, and caps the response size + time.
 async function countEvents(rawUrl) {
-  let url = (rawUrl || '').trim().replace(/^webcal:\/\//i, 'https://');
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 12000);
-  let res;
+  const url = (rawUrl || '').trim().replace(/^webcal:\/\//i, 'https://');
+  let text;
   try {
-    res = await fetch(url, { redirect: 'follow', signal: ctrl.signal, headers: { 'User-Agent': 'TrentsFreshSpaces/1.0 (+https://trentsfreshspaces.com)' } });
+    text = await safeFetchText(url, {
+      headers: { 'User-Agent': 'TrentsFreshSpaces/1.0 (+https://trentsfreshspaces.com)' },
+    });
   } catch (e) {
-    clearTimeout(t);
-    throw new Error('fetch-failed:' + (e.message || 'network'));
+    const m = e.message || 'network';
+    if (/^http-/.test(m)) throw new Error(m); // preserve HTTP status for the UI hint
+    if (/blocked-address|bad-scheme|bad-url|dns-/.test(m)) throw new Error('blocked-url');
+    throw new Error('fetch-failed:' + m);
   }
-  clearTimeout(t);
-  if (!res.ok) throw new Error('http-' + res.status);
-  const text = await res.text();
   if (!/BEGIN:VCALENDAR/i.test(text)) throw new Error('not-ics');
   const parsed = ical.sync.parseICS(text);
   return Object.values(parsed).filter((e) => e && e.type === 'VEVENT').length;
@@ -94,6 +98,7 @@ async function runSetup(p) {
       if (/^http-404/.test(code)) hint = 'That calendar link returned "not found" — copy the "Secret address in iCal format" (it ends in /basic.ics); the Public address won\'t work for a private calendar.';
       else if (/not-ics/.test(code)) hint = 'That link isn\'t an iCal feed — use "Secret address in iCal format" (ends in /basic.ics), not "Public URL to this calendar" (that\'s a web page).';
       else if (/^http-/.test(code)) hint = `Google returned an error (${code.replace('http-', 'HTTP ')}) for that link — re-copy the "Secret address in iCal format".`;
+      else if (/blocked-url/.test(code)) hint = 'That link isn\'t allowed — paste a public Google "Secret address in iCal format" URL (ends in /basic.ics). Internal or private addresses can\'t be used.';
       else if (/fetch-failed|abort/.test(code)) hint = 'Couldn\'t reach that calendar link — make sure the full URL was pasted, then try again.';
       else hint = 'Google calendar link could not be read — re-copy the "Secret address in iCal format".';
       checks.push({ ok: false, label: hint });
