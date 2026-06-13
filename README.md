@@ -75,8 +75,10 @@ nginx site `trents-fresh-spaces`. The booking API runs under **pm2** on
 ```bash
 # static
 rsync -avz index.html styles.css script.js booking.css booking.js \
-  robots.txt sitemap.xml assets/ \
+  robots.txt sitemap.xml site.webmanifest assets/ \
   root@104.236.120.144:/var/www/trents-fresh-spaces/
+rsync -avz services/ root@104.236.120.144:/var/www/trents-fresh-spaces/services/
+rsync -avz guides/   root@104.236.120.144:/var/www/trents-fresh-spaces/guides/
 # api
 rsync -avz --exclude node_modules --exclude .env --exclude '*.sqlite*' \
   server/ root@104.236.120.144:/var/www/trents-fresh-spaces/server/
