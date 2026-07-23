@@ -50,8 +50,8 @@ Two booking types: **Free On-Site Estimate** (60 min) and **Phone Consultation**
 | GET  | `/api/services` | service list + booking rules |
 | GET  | `/api/availability?service=&date=` | open slots for a day |
 | POST | `/api/book` | create a booking |
-| GET  | `/api/admin/bookings?token=` | upcoming bookings (admin) |
-| POST | `/api/admin/cancel?token=` | cancel a booking (admin) |
+| GET  | `/api/admin/bookings` | upcoming bookings (admin — send `x-admin-token` header, or `Authorization: Bearer <token>`) |
+| POST | `/api/admin/cancel` | cancel a booking (admin — send `x-admin-token` header, or `Authorization: Bearer <token>`) |
 
 ### Configuration
 

@@ -188,7 +188,13 @@ app.post('/api/book', async (req, res) => {
 
 // --- admin (token-protected) ---
 function requireAdmin(req, res) {
-  const token = req.query.token || req.headers['x-admin-token'];
+  // The admin token guards all customer PII (/api/admin/bookings) and cancels.
+  // Accept it ONLY from a request header — never from req.query — so it can't
+  // leak via access logs, the Referer header, or browser history. Supports the
+  // dedicated x-admin-token header or a standard Authorization: Bearer <token>.
+  const auth = req.headers['authorization'] || '';
+  const bearer = /^Bearer\s+(.+)$/i.exec(auth);
+  const token = req.headers['x-admin-token'] || (bearer ? bearer[1].trim() : '');
   if (!config.adminToken || token !== config.adminToken) {
     res.status(401).json({ error: 'unauthorized' });
     return false;
