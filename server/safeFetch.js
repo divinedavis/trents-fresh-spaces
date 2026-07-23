@@ -8,6 +8,8 @@
 // body is size-capped.
 const dns = require('dns').promises;
 const net = require('net');
+const http = require('http');
+const https = require('https');
 
 const MAX_REDIRECTS = 3;
 const DEFAULT_TIMEOUT_MS = 12000;
@@ -91,7 +93,10 @@ async function assertSafeHost(hostname) {
 }
 
 // Validate a single URL: scheme must be http/https, and the host must not
-// resolve into a blocked range. Throws on rejection.
+// resolve into a blocked range. Throws on rejection. Returns the parsed URL
+// together with the exact validated address(es) the host resolved to, so the
+// caller can PIN the connection to one of them and close the DNS-rebinding
+// TOCTOU window (the guard and the socket must use the same resolution).
 async function assertSafeFetchTarget(rawUrl) {
   let u;
   try {
@@ -100,8 +105,8 @@ async function assertSafeFetchTarget(rawUrl) {
     throw new Error('bad-url');
   }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('bad-scheme');
-  await assertSafeHost(u.hostname);
-  return u;
+  const addresses = await assertSafeHost(u.hostname);
+  return { url: u, addresses };
 }
 
 // Boolean convenience wrapper.
@@ -114,8 +119,91 @@ async function isSafePublicUrl(rawUrl) {
   }
 }
 
+// Perform ONE GET against a URL while pinning every DNS resolution on the
+// connection to `pinnedIp` — the exact address the SSRF guard already
+// validated. A custom `lookup` short-circuits DNS so the socket can never
+// re-resolve to a different (e.g. rebound 127.0.0.1 / 169.254.169.254) address;
+// the original hostname is still used for the Host header and TLS SNI. Never
+// auto-follows redirects (returns the 3xx + Location so the caller can
+// re-validate), enforces a timeout, and caps the response size. Resolves to
+// { status, location, body }.
+function pinnedGet(u, pinnedIp, { headers, timeoutMs, maxBytes }) {
+  return new Promise((resolve, reject) => {
+    const isHttps = u.protocol === 'https:';
+    const mod = isHttps ? https : http;
+    const family = net.isIP(pinnedIp) || 4;
+
+    const options = {
+      protocol: u.protocol,
+      hostname: u.hostname, // drives the Host header + (for https) the SNI servername
+      port: u.port || (isHttps ? 443 : 80),
+      path: (u.pathname || '/') + (u.search || ''),
+      method: 'GET',
+      headers,
+      // Pin: return the pre-validated IP regardless of the name asked for, so
+      // the connection cannot land on a re-resolved address.
+      lookup: (_hostname, lookupOpts, cb) => {
+        if (lookupOpts && lookupOpts.all) return cb(null, [{ address: pinnedIp, family }]);
+        return cb(null, pinnedIp, family);
+      },
+    };
+    if (isHttps) options.servername = u.hostname; // preserve SNI for TLS cert validation
+
+    let settled = false;
+    const ctrl = new AbortController();
+    options.signal = ctrl.signal;
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const finish = (fn) => (arg) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(arg);
+    };
+    const ok = finish(resolve);
+    const fail = finish(reject);
+
+    const req = mod.request(options, (res) => {
+      const status = res.statusCode || 0;
+      const location = res.headers['location'];
+
+      // Redirect: hand it back for re-validation; don't read the body.
+      if (status >= 300 && status < 400 && location) {
+        res.destroy();
+        return ok({ status, location, body: '' });
+      }
+
+      // Reject obviously-oversized bodies up front when Content-Length is present.
+      const len = parseInt(res.headers['content-length'] || '', 10);
+      if (Number.isFinite(len) && len > maxBytes) {
+        res.destroy();
+        return fail(new Error('too-large'));
+      }
+
+      const chunks = [];
+      let received = 0;
+      res.on('data', (chunk) => {
+        received += chunk.length;
+        if (received > maxBytes) {
+          res.destroy();
+          return fail(new Error('too-large'));
+        }
+        chunks.push(chunk);
+      });
+      res.on('end', () => ok({ status, location: undefined, body: Buffer.concat(chunks).toString('utf8') }));
+      res.on('error', (e) => fail(e));
+    });
+
+    req.on('error', (e) => {
+      if (e && (e.name === 'AbortError' || e.code === 'ABORT_ERR')) return fail(new Error('timeout'));
+      fail(e);
+    });
+    req.end();
+  });
+}
+
 // SSRF-safe fetch: validates the target (and every redirect hop) against the
-// egress guard, never auto-follows redirects, enforces a timeout, and caps the
+// egress guard, pins the connection to the validated IP (defeating DNS
+// rebinding), never auto-follows redirects, enforces a timeout, and caps the
 // response size. Returns the response body as text.
 async function safeFetchText(rawUrl, opts = {}) {
   const timeoutMs = opts.timeoutMs || DEFAULT_TIMEOUT_MS;
@@ -124,48 +212,26 @@ async function safeFetchText(rawUrl, opts = {}) {
 
   let current = rawUrl;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    await assertSafeFetchTarget(current); // re-validate every hop (no internal redirect target)
+    // Re-validate every hop AND capture the exact address it resolved to, then
+    // connect to that pinned address — the guard and the socket share one
+    // resolution, so a rebinding host that answers "public" here and
+    // "127.0.0.1" to a second lookup cannot slip through.
+    const { url, addresses } = await assertSafeFetchTarget(current);
+    const pinnedIp = addresses[0];
 
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    let res;
-    try {
-      res = await fetch(current, { redirect: 'manual', signal: ctrl.signal, headers });
-    } finally {
-      clearTimeout(timer);
-    }
+    const res = await pinnedGet(url, pinnedIp, { headers, timeoutMs, maxBytes });
 
     // Handle redirects ourselves so an open redirect can't bounce us to an
     // internal target without re-validation.
-    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
-      const next = new URL(res.headers.get('location'), current).toString();
+    if (res.status >= 300 && res.status < 400 && res.location) {
+      const next = new URL(res.location, current).toString();
       if (hop === MAX_REDIRECTS) throw new Error('too-many-redirects');
       current = next;
       continue;
     }
 
-    if (!res.ok) throw new Error('http-' + res.status);
-
-    // Reject obviously-oversized bodies up front when Content-Length is present.
-    const len = parseInt(res.headers.get('content-length') || '', 10);
-    if (Number.isFinite(len) && len > maxBytes) throw new Error('too-large');
-
-    // Stream-read with a hard byte cap (covers chunked/no-length responses).
-    if (!res.body) return await res.text();
-    const reader = res.body.getReader();
-    const chunks = [];
-    let received = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      received += value.length;
-      if (received > maxBytes) {
-        try { await reader.cancel(); } catch (_) {}
-        throw new Error('too-large');
-      }
-      chunks.push(value);
-    }
-    return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString('utf8');
+    if (res.status < 200 || res.status >= 300) throw new Error('http-' + res.status);
+    return res.body;
   }
   throw new Error('too-many-redirects');
 }
@@ -176,4 +242,5 @@ module.exports = {
   isSafePublicUrl,
   isBlockedAddress,
   safeFetchText,
+  pinnedGet, // exported for tests: verifies IP pinning + Host/SNI preservation
 };
