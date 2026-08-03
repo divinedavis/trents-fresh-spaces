@@ -27,6 +27,15 @@ const { runSetup, validateSetupToken } = require('./setup');
 
 const app = express();
 app.disable('x-powered-by');
+// The process listens on 127.0.0.1:3007 only, so every request arrives through
+// the local nginx. Telling Express that lets req.ip resolve the real client from
+// X-Forwarded-For *correctly* — walking the header from the right and stopping
+// at the first non-loopback hop. Reading the header by hand is what goes wrong:
+// nginx sets `X-Forwarded-For $proxy_add_x_forwarded_for`, which APPENDS the
+// real address to whatever the client sent, so the LEFTMOST entry is entirely
+// attacker-controlled and keying a rate limiter on it lets a caller hand
+// themselves a fresh bucket on every single request.
+app.set('trust proxy', 'loopback');
 
 // Escape user-controlled values before interpolating them into any HTML output,
 // to prevent stored XSS (booking fields are accepted verbatim and rendered later).
@@ -65,6 +74,11 @@ function rateLimit(ip, max, windowMs) {
   rec.count += 1;
   hits.set(ip, rec);
   return rec.count <= max;
+}
+
+// The real client address, via the trust-proxy setting configured above.
+function clientIp(req) {
+  return req.ip || 'unknown';
 }
 
 function dbBusyInRange(startMs, endMs) {
@@ -117,7 +131,7 @@ app.get('/api/availability', async (req, res) => {
 });
 
 app.post('/api/book', async (req, res) => {
-  const ip = (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+  const ip = clientIp(req);
   if (!rateLimit(ip, 8, 10 * 60000)) return res.status(429).json({ error: 'Too many requests, please try again later.' });
 
   try {
