@@ -84,3 +84,24 @@ rsync -avz --exclude node_modules --exclude .env --exclude '*.sqlite*' \
   server/ root@104.236.120.144:/var/www/trents-fresh-spaces/server/
 ssh root@104.236.120.144 'cd /var/www/trents-fresh-spaces/server && npm install --omit=dev && pm2 restart trents-fresh-spaces'
 ```
+
+### Analytics
+
+Traffic and bookings show up on the owner dashboard at findacrib.com/dashboard
+under the **Fresh Spaces** tab (owner-only). Nothing on this site reports them:
+the dashboard reads the server's own access log and the booking SQLite directly,
+so there is no tag to install and an ad-blocker cannot hide a visitor.
+
+Two things that must not be undone:
+
+* The vhost carries `access_log /var/log/nginx/trents.access.log site;`. Without
+  it the site writes into the shared `/var/log/nginx/access.log` in the combined
+  format, which records no `$host` — its lines then cannot be told apart from
+  any other site on the box, and the tab goes blank.
+* **`/etc/nginx/sites-enabled/trents-fresh-spaces` is a real file, not a symlink
+  to sites-available, and it has been the newer of the two.** Edit the enabled
+  copy, then copy it over sites-available. Editing sites-available and reloading
+  changes nothing, silently.
+
+There is still no beacon on the `tel:` links, so calls and texts — the actual
+conversion for this trade — are uncounted rather than zero.
