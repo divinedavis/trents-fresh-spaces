@@ -62,23 +62,69 @@ app.use((_req, res, next) => {
 app.use(express.json({ limit: '32kb' }));
 app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 
-// --- tiny in-memory rate limiter for the booking endpoint ---
+// --- tiny in-memory rate limiter ---
+// Keyed on bucket+ip, not ip alone, so the booking counter and the guards on
+// the admin/setup/signed-link routes don't share one budget and starve each
+// other. Bounded and swept, because an unbounded Map keyed on client address is
+// itself a slow denial of service — the process just grows until it dies.
+const RATE_MAX_KEYS = 5000;
 const hits = new Map();
-function rateLimit(ip, max, windowMs) {
+
+function sweepExpired(now) {
+  for (const [k, rec] of hits) if (now > rec.reset) hits.delete(k);
+}
+
+function rateLimit(key, max, windowMs) {
   const now = Date.now();
-  const rec = hits.get(ip) || { count: 0, reset: now + windowMs };
+  const rec = hits.get(key) || { count: 0, reset: now + windowMs };
   if (now > rec.reset) {
     rec.count = 0;
     rec.reset = now + windowMs;
   }
   rec.count += 1;
-  hits.set(ip, rec);
+  hits.set(key, rec);
+  if (hits.size > RATE_MAX_KEYS) {
+    sweepExpired(now);
+    // Still full: drop the oldest buckets (Map preserves insertion order)
+    // rather than clearing the table, so a flood can't wipe every counter —
+    // including its own — and hand itself a clean slate.
+    if (hits.size > RATE_MAX_KEYS) {
+      let over = hits.size - RATE_MAX_KEYS;
+      for (const k of hits.keys()) {
+        if (over-- <= 0) break;
+        hits.delete(k);
+      }
+    }
+  }
   return rec.count <= max;
 }
+setInterval(() => sweepExpired(Date.now()), 10 * 60000).unref();
 
 // The real client address, via the trust-proxy setting configured above.
 function clientIp(req) {
   return req.ip || 'unknown';
+}
+
+/** Guard a JSON endpoint. Returns true when the request was turned away. */
+function limitedJson(req, res, bucket, max, windowMs) {
+  if (rateLimit(`${bucket}-${clientIp(req)}`, max, windowMs)) return false;
+  res.status(429).json({ error: 'Too many requests, please try again later.' });
+  return true;
+}
+
+/** Guard an HTML endpoint (the signed /booking/* pages). */
+function limitedHtml(req, res, bucket, max, windowMs) {
+  if (rateLimit(`${bucket}-${clientIp(req)}`, max, windowMs)) return false;
+  res.status(429).send(manageHtml('Slow down', '<h1>Too many requests.</h1><p class="muted">Please wait a minute and try again.</p>'));
+  return true;
+}
+
+/** Constant-time compare, so a token check can't be narrowed by timing. */
+function secretEquals(a, b) {
+  const ab = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
 }
 
 function dbBusyInRange(startMs, endMs) {
@@ -131,8 +177,7 @@ app.get('/api/availability', async (req, res) => {
 });
 
 app.post('/api/book', async (req, res) => {
-  const ip = clientIp(req);
-  if (!rateLimit(ip, 8, 10 * 60000)) return res.status(429).json({ error: 'Too many requests, please try again later.' });
+  if (limitedJson(req, res, 'book', 8, 10 * 60000)) return;
 
   try {
     const b = req.body || {};
@@ -209,7 +254,7 @@ function requireAdmin(req, res) {
   const auth = req.headers['authorization'] || '';
   const bearer = /^Bearer\s+(.+)$/i.exec(auth);
   const token = req.headers['x-admin-token'] || (bearer ? bearer[1].trim() : '');
-  if (!config.adminToken || token !== config.adminToken) {
+  if (!config.adminToken || !secretEquals(token, config.adminToken)) {
     res.status(401).json({ error: 'unauthorized' });
     return false;
   }
@@ -217,6 +262,7 @@ function requireAdmin(req, res) {
 }
 
 app.get('/api/admin/bookings', (req, res) => {
+  if (limitedJson(req, res, 'admin', 60, 10 * 60000)) return;
   if (!requireAdmin(req, res)) return;
   const rows = stmts.upcoming.all({ now: DateTime.utc().toISO() });
   res.json({
@@ -229,6 +275,7 @@ app.get('/api/admin/bookings', (req, res) => {
 });
 
 app.post('/api/admin/cancel', (req, res) => {
+  if (limitedJson(req, res, 'admin', 60, 10 * 60000)) return;
   if (!requireAdmin(req, res)) return;
   const uid = String((req.body && req.body.uid) || req.query.uid || '');
   const existing = stmts.byUid.get(uid);
@@ -249,6 +296,7 @@ function manageHtml(title, body) {
 }
 
 app.get('/booking/manage', (req, res) => {
+  if (limitedHtml(req, res, 'manage', 60, 10 * 60000)) return;
   const uid = String(req.query.uid || '');
   const sig = String(req.query.sig || '');
   if (!calendar.verifyManageSig(uid, sig)) return res.status(403).send(manageHtml('Invalid link', '<h1>This link is invalid.</h1><p class="muted">Please use the link from your booking email.</p>'));
@@ -277,6 +325,7 @@ app.get('/booking/manage', (req, res) => {
 });
 
 app.post('/booking/cancel', async (req, res) => {
+  if (limitedHtml(req, res, 'cancel', 20, 10 * 60000)) return;
   const uid = String((req.body && req.body.uid) || '');
   const sig = String((req.body && req.body.sig) || '');
   if (!calendar.verifyManageSig(uid, sig)) return res.status(403).send(manageHtml('Invalid link', '<h1>This link is invalid.</h1>'));
@@ -299,6 +348,7 @@ app.post('/booking/cancel', async (req, res) => {
 
 // --- one-time setup link (Trent connects his calendars/email) ---
 app.post('/api/setup', async (req, res) => {
+  if (limitedJson(req, res, 'setup', 20, 10 * 60000)) return;
   // The setup token gates credential overwrite, so it is required ON the
   // credential-write request itself and is accepted ONLY from a header or the
   // POST body — never from req.query, so it can't leak via access logs, the
