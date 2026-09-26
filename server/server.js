@@ -105,6 +105,54 @@ function clientIp(req) {
   return req.ip || 'unknown';
 }
 
+// --- booking abuse guards ---
+// The customer's confirmation email opens "Hi <name>," and goes to whatever
+// address the form was given, so an unguarded booking form is a spam relay: a
+// bot books with name = "Claim your prize at evil.example" and email = a
+// victim, and the business's own mail server delivers the pitch. A real name
+// never contains a link, a domain, an @ or markup, so refuse those outright.
+const NAME_TLDS = 'com|net|org|io|co|us|uk|ru|cn|xyz|top|info|biz|me|app|site|online|link|click|shop|live|club|pro|store|tk|ml|ga|cf|gq|ly|to|gg|vip|win|bid|icu|cc|ws|su|pw|de|fr|in|br';
+const NAME_LINK_RE = new RegExp(`(https?|ftp):|www\\.|:\\/\\/|[@<>\\\\/{}\\[\\]]|&#|\\b[a-z0-9-]+\\.(?:${NAME_TLDS})\\b|\\b[a-z0-9-]+\\s*(?:\\.|\\(dot\\)|\\[dot\\])\\s*(?:com|net|org|ru|xyz)\\b`, 'i');
+function nameLooksLikeSpam(name) {
+  return NAME_LINK_RE.test(name);
+}
+
+// Caps that sit behind the per-IP limiter, because a botnet has many IPs:
+//  - per recipient: one inbox can't be sent more than a few confirmations a day,
+//    however many addresses the requests come from;
+//  - global: a hard daily ceiling on web bookings (and so on customer emails).
+// Real volume is a handful of bookings a week, so neither is ever reached by
+// customers. Kept apart from the `hits` map on purpose: that map evicts its
+// oldest keys under a flood, and a circuit breaker that can be flushed isn't one.
+const RECIPIENT_DAILY_MAX = 3;
+const WEB_BOOKINGS_DAILY_MAX = 25;
+const daily = { day: '', total: 0, byEmail: new Map() };
+function dailyBucket() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (daily.day !== today) {
+    daily.day = today;
+    daily.total = 0;
+    daily.byEmail = new Map();
+  }
+  return daily;
+}
+/** Would one more web booking break a daily cap? Checks only; see noteWebBooking. */
+function webBookingCapReason(email) {
+  const d = dailyBucket();
+  if (d.total >= WEB_BOOKINGS_DAILY_MAX) return 'global';
+  if (email && (d.byEmail.get(email.toLowerCase()) || 0) >= RECIPIENT_DAILY_MAX) return 'recipient';
+  return null;
+}
+function noteWebBooking(email) {
+  const d = dailyBucket();
+  d.total += 1;
+  if (email) {
+    const k = email.toLowerCase();
+    // Bounded by WEB_BOOKINGS_DAILY_MAX, since only recorded bookings add keys.
+    d.byEmail.set(k, (d.byEmail.get(k) || 0) + 1);
+  }
+}
+
 /** Guard a JSON endpoint. Returns true when the request was turned away. */
 function limitedJson(req, res, bucket, max, windowMs) {
   if (rateLimit(`${bucket}-${clientIp(req)}`, max, windowMs)) return false;
@@ -177,20 +225,26 @@ app.get('/api/availability', async (req, res) => {
 });
 
 app.post('/api/book', async (req, res) => {
-  if (limitedJson(req, res, 'book', 8, 10 * 60000)) return;
+  if (limitedJson(req, res, 'book', 4, 10 * 60000)) return;
+  // A day-long ceiling per address as well: 4 per 10 minutes is still ~570 a day.
+  if (limitedJson(req, res, 'bookday', 12, 24 * 3600000)) return;
 
   try {
     const b = req.body || {};
-    const name = String(b.name || '').trim();
-    const phone = String(b.phone || '').trim();
-    const email = String(b.email || '').trim();
-    const address = String(b.address || '').trim();
-    const notes = String(b.notes || '').trim().slice(0, 1000);
-    const service = String(b.service || '').trim();
-    const start = String(b.start || '').trim();
+    // Clip every field: the 32kb body cap is not a field limit, and these are
+    // rendered into the owner's alert, the customer's email and the manage page.
+    const clip = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+    const name = clip(b.name, 120);
+    const phone = clip(b.phone, 40);
+    const email = clip(b.email, 200);
+    const address = clip(b.address, 300);
+    const notes = clip(b.notes, 1000);
+    const service = clip(b.service, 60);
+    const start = clip(b.start, 40);
 
     const svc = serviceOrThrow(service);
     if (name.length < 2) return res.status(400).json({ error: 'Please enter your name.' });
+    if (nameLooksLikeSpam(name)) return res.status(400).json({ error: 'Please enter just your name (no links or web addresses).' });
     if (phone.replace(/\D/g, '').length < 10) return res.status(400).json({ error: 'Please enter a valid phone number.' });
     if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Please enter a valid email.' });
     if (svc.id === 'estimate' && address.length < 5) return res.status(400).json({ error: 'Please enter the address for the estimate.' });
@@ -214,6 +268,11 @@ app.post('/api/book', async (req, res) => {
     const busy = await busyForDay(dateISO);
     const v = validateBooking(service, start, busy, Date.now());
     if (!v.ok) return res.status(409).json({ error: v.reason });
+    const capped = webBookingCapReason(email);
+    if (capped) {
+      console.warn(`[book] daily ${capped} cap reached; refusing web booking`);
+      return res.status(429).json({ error: "We've had an unusual number of online bookings today. Please call or text us to book, or try again tomorrow." });
+    }
     booking.start_utc = DateTime.fromISO(start, { zone: 'utc' }).toISO();
     booking.end_utc = v.end;
 
@@ -228,6 +287,7 @@ app.post('/api/book', async (req, res) => {
       stmts.insert.run(booking);
     });
     insertTxn();
+    noteWebBooking(email);
 
     // Side-effects (email invite + optional iCloud write). Don't fail the booking on these.
     let emailResult = { sent: false };
