@@ -69,8 +69,18 @@ work without these, but **calendar sync and email need them**:
 ## Deployment
 
 Static files live at `/var/www/trents-fresh-spaces` on the droplet, served by the
-nginx site `trents-fresh-spaces`. The booking API runs under **pm2** on
-`127.0.0.1:3007`, reverse-proxied by nginx at `/api/`.
+nginx site `trents-fresh-spaces`. The booking API runs as the nologin system
+user **`trents`** under the systemd unit **`trents-fresh-spaces.service`** (moved off
+root's pm2 on 2026-09-26) on `127.0.0.1:3007`, reverse-proxied by nginx at `/api/`.
+Setup's `process.exit` restart still works (`Restart=always`).
+
+Ownership the deploy must preserve: code root-owned and read-only to the app;
+`server/` is `root:trents 1770` (sticky, so the app can create sqlite `-wal`/`-shm`
+files but not replace code); `bookings.sqlite*` belong to `trents`; `server/.env` is
+`root:trents 0640`. `rsync -a` copies this Mac's uid 501 and resets `server/`'s
+mode, so the api step below re-applies it. The app can no longer rewrite `.env`:
+before Trent uses a `setup.html?t=` link run `chown trents server/.env`, and put it
+back to `root:trents 0640` afterwards.
 
 ```bash
 # static
@@ -82,7 +92,10 @@ rsync -avz guides/   root@104.236.120.144:/var/www/trents-fresh-spaces/guides/
 # api
 rsync -avz --exclude node_modules --exclude .env --exclude '*.sqlite*' \
   server/ root@104.236.120.144:/var/www/trents-fresh-spaces/server/
-ssh root@104.236.120.144 'cd /var/www/trents-fresh-spaces/server && npm install --omit=dev && pm2 restart trents-fresh-spaces'
+ssh root@104.236.120.144 'cd /var/www/trents-fresh-spaces/server && npm install --omit=dev && \
+  chown -R root:root . && chmod -R go-w . && chown root:trents . && chmod 1770 . && \
+  chown trents:trents bookings.sqlite* && chown root:trents .env && chmod 0640 .env && \
+  systemctl restart trents-fresh-spaces'
 ```
 
 ### Analytics
