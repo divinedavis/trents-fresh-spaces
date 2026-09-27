@@ -196,6 +196,7 @@ h3{font-family:"Archivo",sans-serif;font-weight:700}
 .field input:focus,.field textarea:focus{outline:none;border-color:var(--blue);background:#fff;box-shadow:0 0 0 4px rgba(30,111,224,.12)}
 .field textarea{resize:vertical}
 .form-note{margin:14px 0 0;font-size:.82rem;color:var(--muted);text-align:center}
+.form-note a,.footer-legal{text-decoration:underline}
 
 /* ===== Footer ===== */
 .site-footer{background:var(--navy);color:rgba(255,255,255,.78);padding:60px 0 26px}

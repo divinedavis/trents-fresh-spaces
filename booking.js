@@ -61,6 +61,7 @@
             '<div class="field full"><label for="bk-notes">Anything else?</label><textarea id="bk-notes" rows="2" placeholder="Which rooms? Colors? Timeline?"></textarea></div>' +
           '</div>' +
         '</div>' +
+        '<p class="form-note">Your details are saved with the booking and emailed to Trent to schedule your visit. See our <a href="/privacy.html">Privacy Policy</a>.</p>' +
         '<div class="booking-footer">' +
           '<div class="booking-summary" id="bk-summary">Select a service, date, and time.</div>' +
           '<button type="button" class="btn btn-primary btn-lg" id="bk-submit" disabled>Confirm Booking</button>' +
