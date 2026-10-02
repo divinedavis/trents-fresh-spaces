@@ -115,6 +115,10 @@ Two things that must not be undone:
   to sites-available, and it has been the newer of the two.** Edit the enabled
   copy, then copy it over sites-available. Editing sites-available and reloading
   changes nothing, silently.
+* The live vhost is mirrored in `deploy/nginx-trents-fresh-spaces.conf` (since
+  2026-10-01). It carries an enforced CSP on HTML pages; setup.html alone gets
+  `'unsafe-inline'` scripts via the `$tfs_script_src` map. A new inline
+  `<script>` on any other page is blocked by the browser, so add JS as a file.
 
 There is still no beacon on the `tel:` links, so calls and texts — the actual
 conversion for this trade — are uncounted rather than zero.
